@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Volume Expansion Simulation</title>
+    <style>
+        :root {
+            --blue: #3498db;
+            --red: #e74c3c;
+            --yellow: #f1c40f;
+            --green: #2ecc71;
+            --gray: #bdc3c7;
+            --dark: #2c3e50;
+            --light: #f8f9fa;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--light);
+            color: var(--dark);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 30px;
+            max-width: 1050px;
+            width: 100%;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        .panel {
+            flex: 1;
+            min-width: 320px;
+            display: flex;
+            flex-direction: column;
+        }
+        h1, h2 { margin-top: 0; color: var(--dark); }
+        
+        /* Toggle Switch Styles */
+        .toggle-container {
+            display: flex;
+            background: #e9ecef;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 25px;
+        }
+        .toggle-btn {
+            flex: 1;
+            padding: 12px;
+            text-align: center;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.3s;
+            border: none;
+            background: transparent;
+            font-size: 1.1em;
+            color: #7f8c8d;
+        }
+        .toggle-btn.active {
+            background: var(--dark);
+            color: white;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        /* Controls */
+        .control-group {
+            margin-bottom: 20px;
+            background: var(--light);
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 5px solid var(--dark);
+        }
+        .control-group.red { border-left-color: var(--red); }
+        .control-group.blue { border-left-color: var(--blue); }
+        .control-group.green { border-left-color: var(--green); }
+        
+        input[type="range"] { width: 100%; margin: 10px 0; cursor: pointer; }
+        
+        /* Data Table */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: auto;
+            font-size: 1.05em;
+            background: var(--light);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background-color: #e9ecef; color: var(--dark); }
+        .val-exact { font-weight: bold; color: var(--dark); }
+        .val-approx { font-weight: bold; color: #27ae60; }
+        .val-missing { font-weight: bold; color: #d35400; }
+        .val-error { font-weight: bold; color: #c0392b; }
+        
+        /* Visualization */
+        .visualization {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 400px;
+            background: #e9ecef;
+            border-radius: 12px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: inset 0 3px 6px rgba(0,0,0,0.05);
+        }
+        .legend {
+            margin-top: 15px;
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+            background: #e9ecef;
+            padding: 10px;
+            border-radius: 8px;
+        }
+        .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.9em; font-weight: bold;}
+        .color-box { width: 18px; height: 18px; border-radius: 4px; border: 1px solid rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="panel">
+            <h1>Differential Geometry</h1>
+            
+            <div class="toggle-container">
+                <button class="toggle-btn active" id="btn-cyl" onclick="setMode('cylinder')">Cylinder Mode</button>
+                <button class="toggle-btn" id="btn-cube" onclick="setMode('cube')">Cube Mode</button>
+            </div>
+            
+            <!-- Cylinder Controls -->
+            <div id="controls-cyl">
+                <p>Standard weight expansion (r = 23.5 mm, h = 50.5 mm).</p>
+                <div class="control-group red">
+                    <label><strong>Change in Radius (Δr): <span id="dr-val">0.00</span> mm</strong></label>
+                    <input type="range" id="dr-slider" min="0" max="5" step="0.05" value="0">
+                </div>
+                <div class="control-group blue">
+                    <label><strong>Change in Height (Δh): <span id="dh-val">0.00</span> mm</strong></label>
+                    <input type="range" id="dh-slider" min="0" max="10" step="0.1" value="0">
+                </div>
+            </div>
+
+            <!-- Cube Controls -->
+            <div id="controls-cube" style="display: none;">
+                <p>Standard cube expansion (L = 50 mm).</p>
+                <div class="control-group green">
+                    <label><strong>Change in Side Length (ΔL): <span id="dl-val">0.00</span> mm</strong></label>
+                    <input type="range" id="dl-slider" min="0" max="15" step="0.1" value="0">
+                </div>
+            </div>
+
+            <table>
+                <tr>
+                    <th>Metric</th>
+                    <th>Value (mm³)</th>
+                </tr>
+                <tr>
+                    <td>Original Base Volume</td>
+                    <td id="vol-orig">0.00</td>
+                </tr>
+                <tr>
+                    <td><strong>Exact New Volume</strong></td>
+                    <td id="vol-new" class="val-exact">0.00</td>
+                </tr>
+                <tr>
+                    <td>Exact Volume Added (ΔV)</td>
+                    <td id="vol-change">0.00</td>
+                </tr>
+                <tr>
+                    <td>Linear Approx (1st Order dV)</td>
+                    <td id="vol-approx" class="val-approx">0.00</td>
+                </tr>
+                <tr>
+                    <td><strong>"Missing" Volume (Corrections)</strong></td>
+                    <td id="vol-missing" class="val-missing">0.00</td>
+                </tr>
+                <tr>
+                    <td><strong>Percent Error</strong></td>
+                    <td id="vol-error" class="val-error">0.000%</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="panel">
+            <div class="visualization" id="svg-container">
+                <!-- SVG dynamically generated by JS -->
+            </div>
+            
+            <div class="legend" id="legend-cyl">
+                <div class="legend-item"><div class="color-box" style="background: #bdc3c7;"></div> Base</div>
+                <div class="legend-item"><div class="color-box" style="background: #e74c3c;"></div> Radial Shell (1st)</div>
+                <div class="legend-item"><div class="color-box" style="background: #3498db;"></div> Top Disk (1st)</div>
+                <div class="legend-item"><div class="color-box" style="background: #f1c40f;"></div> Correction Ring (2nd)</div>
+            </div>
+
+            <div class="legend" id="legend-cube" style="display: none;">
+                <div class="legend-item"><div class="color-box" style="background: #bdc3c7;"></div> Base</div>
+                <div class="legend-item"><div class="color-box" style="background: #3498db;"></div> 3 Faces (1st Order)</div>
+                <div class="legend-item"><div class="color-box" style="background: #f1c40f;"></div> 3 Edges (2nd Order)</div>
+                <div class="legend-item"><div class="color-box" style="background: #e74c3c;"></div> 1 Corner (3rd Order)</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Constants
+        const r_base = 23.5;
+        const h_base = 50.5;
+        const L_base = 50.0;
+        let mode = 'cylinder';
+
+        // DOM Elements
+        const sliderR = document.getElementById('dr-slider');
+        const sliderH = document.getElementById('dh-slider');
+        const sliderL = document.getElementById('dl-slider');
+        
+        function setMode(newMode) {
+            mode = newMode;
+            document.getElementById('btn-cyl').classList.toggle('active', mode === 'cylinder');
+            document.getElementById('btn-cube').classList.toggle('active', mode === 'cube');
+            
+            document.getElementById('controls-cyl').style.display = mode === 'cylinder' ? 'block' : 'none';
+            document.getElementById('controls-cube').style.display = mode === 'cube' ? 'block' : 'none';
+            
+            document.getElementById('legend-cyl').style.display = mode === 'cylinder' ? 'flex' : 'none';
+            document.getElementById('legend-cube').style.display = mode === 'cube' ? 'flex' : 'none';
+            
+            updateSimulation();
+        }
+
+        // Isometric Drawing Helper
+        function isoProj(x, y, z, cx, cy, scale) {
+            const xs = x * scale;
+            const ys = y * scale;
+            const zs = z * scale;
+            // Standard Isometric projection math
+            const px = cx + (ys - xs) * 0.866;
+            const py = cy + (xs + ys) * 0.5 - zs;
+            return `${px},${py}`;
+        }
+
+        // Draws a 3D isometric box
+        function drawIsoBox(x, y, z, wx, wy, wz, cTop, cLeft, cRight, cx, cy, scale) {
+            if (wx <= 0 || wy <= 0 || wz <= 0) return '';
+            
+            const pTop = [
+                isoProj(x, y, z+wz, cx, cy, scale), isoProj(x+wx, y, z+wz, cx, cy, scale),
+                isoProj(x+wx, y+wy, z+wz, cx, cy, scale), isoProj(x, y+wy, z+wz, cx, cy, scale)
+            ].join(' ');
+            
+            const pLeft = [
+                isoProj(x+wx, y, z, cx, cy, scale), isoProj(x+wx, y+wy, z, cx, cy, scale),
+                isoProj(x+wx, y+wy, z+wz, cx, cy, scale), isoProj(x+wx, y, z+wz, cx, cy, scale)
+            ].join(' ');
+            
+            const pRight = [
+                isoProj(x, y+wy, z, cx, cy, scale), isoProj(x+wx, y+wy, z, cx, cy, scale),
+                isoProj(x+wx, y+wy, z+wz, cx, cy, scale), isoProj(x, y+wy, z+wz, cx, cy, scale)
+            ].join(' ');
+
+            return `
+                <polygon points="${pTop}" fill="${cTop}" stroke="rgba(0,0,0,0.3)" stroke-width="0.5"/>
+                <polygon points="${pLeft}" fill="${cLeft}" stroke="rgba(0,0,0,0.3)" stroke-width="0.5"/>
+                <polygon points="${pRight}" fill="${cRight}" stroke="rgba(0,0,0,0.3)" stroke-width="0.5"/>
+            `;
+        }
+
+        function updateSimulation() {
+            let vOrig, vNew, exactChange, approxChange, missingVol, percentError;
+            let svgContent = '';
+
+            if (mode === 'cylinder') {
+                const dr = parseFloat(sliderR.value);
+                const dh = parseFloat(sliderH.value);
+                document.getElementById('dr-val').textContent = dr.toFixed(2);
+                document.getElementById('dh-val').textContent = dh.toFixed(2);
+
+                // Math
+                vOrig = Math.PI * Math.pow(r_base, 2) * h_base;
+                vNew = Math.PI * Math.pow(r_base + dr, 2) * (h_base + dh);
+                exactChange = vNew - vOrig;
+                approxChange = (2 * Math.PI * r_base * h_base * dr) + (Math.PI * Math.pow(r_base, 2) * dh);
+                missingVol = exactChange - approxChange;
+
+                // Visual Constants
+                const scale = 3; 
+                const cx = 200, cyTop = 150;
+                const rxBase = r_base * scale, ryBase = rxBase * 0.3, hSvg = h_base * scale;
+                const rxNew = (r_base + dr) * scale, ryNew = rxNew * 0.3, dhSvg = dh * scale;
+
+                // SVG Drawing (Painter's Algorithm: Back to Front)
+                svgContent = `
+                    <svg width="400" height="400" viewBox="0 0 400 400">
+                        <!-- Base -->
+                        <path d="M ${cx - rxBase} ${cyTop} L ${cx - rxBase} ${cyTop + hSvg} A ${rxBase} ${ryBase} 0 0 0 ${cx + rxBase} ${cyTop + hSvg} L ${cx + rxBase} ${cyTop} Z" fill="#bdc3c7" stroke="#7f8c8d"/>
+                        <ellipse cx="${cx}" cy="${cyTop}" rx="${rxBase}" ry="${ryBase}" fill="#ecf0f1" stroke="#7f8c8d"/>
+                        
+                        <!-- Red Shell (dr) -->
+                        ${dr > 0 ? `
+                        <path d="M ${cx - rxNew} ${cyTop} L ${cx - rxNew} ${cyTop + hSvg} A ${rxNew} ${ryNew} 0 0 0 ${cx + rxNew} ${cyTop + hSvg} L ${cx + rxNew} ${cyTop} A ${rxBase} ${ryBase} 0 0 1 ${cx - rxNew} ${cyTop} Z" fill="rgba(231,76,60,0.7)" stroke="#c0392b" stroke-width="1"/>
+                        ` : ''}
+
+                        <!-- Blue Disk (dh) -->
+                        ${dh > 0 ? `
+                        <path d="M ${cx - rxBase} ${cyTop - dhSvg} L ${cx - rxBase} ${cyTop} A ${rxBase} ${ryBase} 0 0 0 ${cx + rxBase} ${cyTop} L ${cx + rxBase} ${cyTop - dhSvg} Z" fill="rgba(52,152,219,0.8)" stroke="#2980b9"/>
+                        <ellipse cx="${cx}" cy="${cyTop - dhSvg}" rx="${rxBase}" ry="${ryBase}" fill="#5DADE2" stroke="#2980b9"/>
+                        ` : ''}
+
+                        <!-- Yellow Correction -->
+                        ${(dr > 0 && dh > 0) ? `
+                        <path d="M ${cx - rxNew} ${cyTop - dhSvg} L ${cx - rxNew} ${cyTop} A ${rxNew} ${ryNew} 0 0 0 ${cx + rxNew} ${cyTop} L ${cx + rxNew} ${cyTop - dhSvg} A ${rxBase} ${ryBase} 0 0 1 ${cx - rxNew} ${cyTop - dhSvg} Z" fill="rgba(241,196,15,0.9)" stroke="#f39c12"/>
+                        <ellipse cx="${cx}" cy="${cyTop - dhSvg}" rx="${rxNew}" ry="${ryNew}" fill="none" stroke="#f39c12" stroke-dasharray="4"/>
+                        ` : ''}
+                    </svg>
+                `;
+            } 
+            else {
+                const dL = parseFloat(sliderL.value);
+                document.getElementById('dl-val').textContent = dL.toFixed(2);
+
+                // Math
+                vOrig = Math.pow(L_base, 3);
+                vNew = Math.pow(L_base + dL, 3);
+                exactChange = vNew - vOrig;
+                approxChange = 3 * Math.pow(L_base, 2) * dL;
+                missingVol = exactChange - approxChange;
+
+                // Drawing Isometric Box
+                const cx = 200, cy = 250, scale = 2.5;
+                const L = L_base;
+                
+                // Color Palettes (Top, Left, Right)
+                const cGray = ['#e0e0e0', '#bdbdbd', '#9e9e9e'];
+                const cBlue = ['#5DADE2', '#3498DB', '#2874A6']; // 1st Order Faces
+                const cYell = ['#F4D03F', '#F1C40F', '#B7950B']; // 2nd Order Edges
+                const cRed  = ['#EC7063', '#E74C3C', '#B03A2E']; // 3rd Order Corner
+
+                let boxes = [];
+                // 1. Base Cube
+                boxes.push(drawIsoBox(0, 0, 0, L, L, L, ...cGray, cx, cy, scale));
+                
+                if (dL > 0) {
+                    // 2. Linear Faces (3 * L^2 * dL)
+                    boxes.push(drawIsoBox(L, 0, 0, dL, L, L, ...cBlue, cx, cy, scale)); // Left-Front Face
+                    boxes.push(drawIsoBox(0, L, 0, L, dL, L, ...cBlue, cx, cy, scale)); // Right-Front Face
+                    boxes.push(drawIsoBox(0, 0, L, L, L, dL, ...cBlue, cx, cy, scale)); // Top Face
+                    
+                    // 3. Quadratic Edges (3 * L * dL^2)
+                    boxes.push(drawIsoBox(L, L, 0, dL, dL, L, ...cYell, cx, cy, scale)); // Vertical Front Edge
+                    boxes.push(drawIsoBox(L, 0, L, dL, L, dL, ...cYell, cx, cy, scale)); // Top Left Edge
+                    boxes.push(drawIsoBox(0, L, L, L, dL, dL, ...cYell, cx, cy, scale)); // Top Right Edge
+                    
+                    // 4. Cubic Corner (dL^3)
+                    boxes.push(drawIsoBox(L, L, L, dL, dL, dL, ...cRed, cx, cy, scale)); // Top Front Corner
+                }
+
+                svgContent = `<svg width="400" height="400" viewBox="0 0 400 400">${boxes.join('')}</svg>`;
+            }
+
+            // Calculate Errors
+            percentError = exactChange > 0 ? (missingVol / exactChange * 100) : 0;
+
+            // Update DOM Data Table
+            document.getElementById('vol-orig').textContent = vOrig.toFixed(2);
+            document.getElementById('vol-new').textContent = vNew.toFixed(2);
+            document.getElementById('vol-change').textContent = exactChange.toFixed(2);
+            document.getElementById('vol-approx').textContent = approxChange.toFixed(2);
+            document.getElementById('vol-missing').textContent = missingVol.toFixed(2);
+            document.getElementById('vol-error').textContent = percentError.toFixed(3) + "%";
+            document.getElementById('svg-container').innerHTML = svgContent;
+        }
+
+        // Event Listeners
+        sliderR.addEventListener('input', updateSimulation);
+        sliderH.addEventListener('input', updateSimulation);
+        sliderL.addEventListener('input', updateSimulation);
+        
+        // Initial Draw
+        updateSimulation();
+    </script>
+</body>
+</html>
