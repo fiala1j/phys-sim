@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>1D Kinematics Simulation</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.8.0/math.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        :root {
+            --bg-color: #f4f7f6;
+            --panel-bg: #ffffff;
+            --primary: #4361ee;
+            --primary-hover: #3a53d0;
+            --danger: #ef476f;
+            --danger-hover: #d93d60;
+            --text-dark: #2b2d42;
+            --text-light: #8d99ae;
+            --border: #e0e4e8;
+            --accel-color: #ef476f;
+            --vel-color: #06d6a0;
+            --pos-color: #118ab2;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-dark);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1000px;
+            background: var(--panel-bg);
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.05);
+        }
+
+        h1 {
+            text-align: center;
+            margin-top: 0;
+            color: var(--text-dark);
+            margin-bottom: 5px;
+        }
+
+        .description {
+            text-align: center;
+            color: var(--text-light);
+            margin-bottom: 25px;
+            font-size: 0.95rem;
+        }
+
+        /* Instructions Panel */
+        #instructionsPanel {
+            display: none;
+            background: #eef2f7;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #cdd4df;
+            font-size: 0.95rem;
+        }
+        
+        #instructionsPanel ul { margin-top: 5px; margin-bottom: 0; }
+        #instructionsPanel code { background: #fff; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
+
+        /* Controls Grid */
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        label {
+            font-weight: 600;
+            margin-bottom: 5px;
+            font-size: 0.9rem;
+        }
+
+        input, select {
+            padding: 10px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.2s;
+            background: #fff;
+        }
+
+        input:focus, select:focus {
+            border-color: var(--primary);
+        }
+
+        /* Buttons */
+        .buttons-container {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: white;
+        }
+
+        button:active { transform: scale(0.97); }
+
+        #startBtn { background-color: var(--primary); }
+        #startBtn:hover { background-color: var(--primary-hover); }
+        #startBtn.running { background-color: #fca311; } 
+
+        #resetBtn { background-color: var(--danger); }
+        #resetBtn:hover { background-color: var(--danger-hover); }
+
+        .toggle-btn { background-color: var(--text-light); }
+        .toggle-btn.active { background-color: var(--text-dark); }
+        
+        #helpBtn { background-color: #4cc9f0; color: #2b2d42; }
+
+        /* Time Slider */
+        .time-scrubber-container {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 25px;
+            background: #fff;
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+        }
+        
+        #timeSlider { flex-grow: 1; cursor: pointer; }
+
+        /* Simulation Canvas (1D Track) */
+        .track-container {
+            position: relative;
+            width: 100%;
+            height: 100px;
+            background-color: #e9ecef;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            background-image: linear-gradient(90deg, #dee2e6 1px, transparent 1px);
+            background-size: 50px 100%;
+        }
+
+        .track-line {
+            position: absolute;
+            width: 100%;
+            height: 4px;
+            background-color: #adb5bd;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        .origin-marker {
+            position: absolute;
+            left: 50%;
+            height: 30px;
+            width: 3px;
+            background-color: #495057;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        .origin-label {
+            position: absolute;
+            left: 50%;
+            top: 65%;
+            transform: translateX(-50%);
+            font-size: 0.85rem;
+            font-weight: bold;
+            color: #495057;
+        }
+
+        #avatar {
+            position: absolute;
+            font-size: 36px;
+            top: 50%;
+            left: 50%; 
+            transform: translate(-50%, -50%);
+            z-index: 10;
+            user-select: none;
+            transition: transform 0.1s;
+        }
+
+        /* Charts Container */
+        .charts-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .chart-box {
+            width: 100%;
+            height: 280px; /* Slightly taller for the new titles */
+            display: none; 
+        }
+        
+        .chart-box.visible { display: block; }
+
+        /* Stats display */
+        .live-stats {
+            display: flex;
+            justify-content: space-around;
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-family: monospace;
+            font-size: 1.1rem;
+            border: 1px solid var(--border);
+        }
+        
+        .stat-a { color: var(--accel-color); font-weight: bold; }
+        .stat-v { color: var(--vel-color); font-weight: bold; }
+        .stat-x { color: var(--pos-color); font-weight: bold; }
+        .stat-t { color: #333; font-weight: bold; }
+        
+        #errorMessage {
+            color: var(--danger);
+            text-align: center;
+            font-weight: bold;
+            margin-bottom: 15px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>1D Kinematics Simulator</h1>
+ 
+    
+    <div id="errorMessage">Invalid mathematical function. Please check your acceleration input.</div>
+
+    <div class="buttons-container">
+        <button id="helpBtn">Instructions & Examples</button>
+        <button id="startBtn">Start Simulation</button>
+        <button id="resetBtn">Reset</button>
+        <button id="toggleVelBtn" class="toggle-btn">Toggle v<sub>x</sub>(t) Graph</button>
+        <button id="togglePosBtn" class="toggle-btn">Toggle x(t) Graph</button>
+    </div>
+
+    <div id="instructionsPanel">
+        <strong>How to use:</strong> Enter an equation for acceleration, set your starting values, and click start. 
+        When paused, drag the time slider below to trace backward and forward in time!
+        <br><br>
+        <strong>Cool functions to try for a<sub>x</sub>(t):</strong>
+        <ul>
+            <li><code>-9.8</code> : Constant gravity (watch the parabola on the position graph).</li>
+            <li><code>sin(t)</code> : Oscillation. Tip: set initial velocity to <code>-1</code> for perfect centering.</li>
+            <li><code>0.5 * t</code> : Linearly increasing acceleration.</li>
+            <li><code>cos(t) * t</code> : Expanding oscillations!</li>
+        </ul>
+    </div>
+
+    <div class="controls">
+        <div class="control-group">
+            <label for="accelFunc">Acceleration, a<sub>x</sub>(t)</label>
+            <input type="text" id="accelFunc" value="sin(t)">
+        </div>
+        <div class="control-group">
+            <label for="initPos">Initial Position, x<sub>0</sub> </label>
+            <input type="number" id="initPos" value="0" step="any">
+        </div>
+        <div class="control-group">
+            <label for="initVel">Initial Velocity, v<sub>x0</sub> </label>
+            <input type="number" id="initVel" value="0" step="any">
+        </div>
+        <div class="control-group">
+            <label for="objectSelect">Object</label>
+            <select id="objectSelect">
+                <!-- data-baseflip=-1 fixes emojis that natively face left so they face right -->
+                <option value="🚗" data-baseflip="-1">Car 🚗</option>
+                <option value="🐛" data-baseflip="-1">Bug 🐛</option>
+                <option value="🐌" data-baseflip="1">Slug 🐌</option>
+                <option value="🏃" data-baseflip="-1">Runner 🏃</option>
+                <option value="🛸" data-baseflip="1">UFO 🛸</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label for="zoomScale">Track Zoom</label>
+            <input type="range" id="zoomScale" min="0.5" max="50" step="0.5" value="20">
+        </div>
+    </div>
+
+    <!-- Time Scrubber -->
+    <div class="time-scrubber-container">
+        <label for="timeSlider" style="margin-bottom:0;"><strong>Time Scrubber:</strong></label>
+        <input type="range" id="timeSlider" min="0" max="0" step="0.01" value="0">
+        <span id="sliderTimeDisplay" style="font-family:monospace; font-weight:bold;">0.00 s</span>
+    </div>
+
+    <div class="live-stats">
+        <div class="stat-t">Time: <span id="val-t">0.00</span> s</div>
+        <div class="stat-x">Pos (x): <span id="val-x">0.00</span> m</div>
+        <div class="stat-v">Vel (v<sub>x</sub>): <span id="val-v">0.00</span> m/s</div>
+        <div class="stat-a">Acc (a<sub>x</sub>): <span id="val-a">0.00</span> m/s²</div>
+    </div>
+
+    <!-- The 1D Track -->
+    <div class="track-container">
+        <div class="track-line"></div>
+        <div class="origin-marker"></div>
+        <div class="origin-label">x = 0</div>
+        <div id="avatar">🚗</div>
+    </div>
+
+    <!-- Charts -->
+    <div class="charts-container">
+        <div class="chart-box visible">
+            <canvas id="accelChart"></canvas>
+        </div>
+        <div class="chart-box" id="velChartBox">
+            <canvas id="velChart"></canvas>
+        </div>
+        <div class="chart-box" id="posChartBox">
+            <canvas id="posChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- Physics State & History ---
+    let time = 0;
+    let x = 0;
+    let v = 0;
+    let a = 0;
+    let isRunning = false;
+    let compiledFunc = null;
+    let lastTimestamp = 0;
+    let historyData = [];
+    let lastChartUpdateTime = 0; // Moved declaration up here for consistency
+
+    // --- DOM Elements ---
+    const avatarEl = document.getElementById('avatar');
+    const objectSelect = document.getElementById('objectSelect');
+    const startBtn = document.getElementById('startBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const toggleVelBtn = document.getElementById('toggleVelBtn');
+    const togglePosBtn = document.getElementById('togglePosBtn');
+    const helpBtn = document.getElementById('helpBtn');
+    const instructionsPanel = document.getElementById('instructionsPanel');
+    
+    const velChartBox = document.getElementById('velChartBox');
+    const posChartBox = document.getElementById('posChartBox');
+    const errorMsg = document.getElementById('errorMessage');
+    const zoomScaleInput = document.getElementById('zoomScale');
+    const timeSlider = document.getElementById('timeSlider');
+    const sliderTimeDisplay = document.getElementById('sliderTimeDisplay');
+    
+    const valT = document.getElementById('val-t');
+    const valX = document.getElementById('val-x');
+    const valV = document.getElementById('val-v');
+    const valA = document.getElementById('val-a');
+
+    // --- Chart Configurations ---
+    const createChartConfig = (datasetLabel, lineCol, yTitle, mainTitle) => ({
+        type: 'line',
+        data: { 
+            datasets: [
+                { label: datasetLabel, borderColor: lineCol, data: [], elements: { point: { radius: 0 } }, tension: 0.1, borderWidth: 2, order: 2 },
+                { label: 'Current Value', backgroundColor: '#2b2d42', borderColor: '#ffffff', data: [], pointRadius: 7, pointBorderWidth: 2, showLine: false, order: 1 }
+            ] 
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false, animation: false,
+            scales: { 
+                x: { type: 'linear', title: { display: true, text: 't (s)' } }, 
+                y: { type: 'linear', title: { display: true, text: yTitle } } 
+            },
+            plugins: { 
+                title: { display: true, text: mainTitle, font: { size: 15 } },
+                legend: { display: true, position: 'top' }, 
+                tooltip: { enabled: false } 
+            }
+        }
+    });
+
+    const accelChart = new Chart(
+        document.getElementById('accelChart').getContext('2d'), 
+        createChartConfig('a_x(t)', '#ef476f', 'a_x (m/s²)', 'Acceleration in x-direction vs. Time')
+    );
+    const velChart = new Chart(
+        document.getElementById('velChart').getContext('2d'), 
+        createChartConfig('v_x(t)', '#06d6a0', 'v_x (m/s)', 'Velocity in x-direction vs. Time')
+    );
+    const posChart = new Chart(
+        document.getElementById('posChart').getContext('2d'), 
+        createChartConfig('x(t)', '#118ab2', 'x (m)', 'Position in x-direction vs. Time')
+    );
+
+    // --- Core Functions ---
+    function initSimulation() {
+        const funcStr = document.getElementById('accelFunc').value || '0';
+        x = parseFloat(document.getElementById('initPos').value) || 0;
+        v = parseFloat(document.getElementById('initVel').value) || 0;
+        
+        // Reset ALL timing values
+        time = 0;
+        lastTimestamp = 0;
+        lastChartUpdateTime = 0; // Fixes the graph blanking bug
+        historyData = []; 
+        
+        try {
+            compiledFunc = math.compile(funcStr);
+            a = compiledFunc.evaluate({ t: 0 });
+            errorMsg.style.display = 'none';
+        } catch (err) {
+            errorMsg.style.display = 'block';
+            return false;
+        }
+
+        // Clear graphs, and push initial values instantly so lines are visible
+        [accelChart, velChart, posChart].forEach(c => {
+            c.data.datasets[0].data = [];
+            c.data.datasets[1].data = [];
+        });
+        
+        accelChart.data.datasets[0].data.push({ x: 0, y: a });
+        velChart.data.datasets[0].data.push({ x: 0, y: v });
+        posChart.data.datasets[0].data.push({ x: 0, y: x });
+        
+        saveStateToHistory();
+        updateVisuals();
+        updateChartDots();
+        
+        avatarEl.textContent = objectSelect.value;
+        
+        return true;
+    }
+
+    function saveStateToHistory() {
+        historyData.push({ t: time, x: x, v: v, a: a });
+        timeSlider.max = time;
+        timeSlider.value = time;
+        sliderTimeDisplay.textContent = time.toFixed(2) + " s";
+    }
+
+    function updateVisuals() {
+        const pixelsPerMeter = parseFloat(zoomScaleInput.value);
+        const offsetPx = x * pixelsPerMeter;
+        
+        const selectedOption = objectSelect.options[objectSelect.selectedIndex];
+        const baseFlip = parseInt(selectedOption.getAttribute('data-baseflip')) || 1;
+        
+        const direction = v < -0.01 ? -1 : 1;
+        const totalScale = baseFlip * direction;
+        
+        avatarEl.style.transform = `translate(calc(-50% + ${offsetPx}px), -50%) scaleX(${totalScale})`;
+
+        valT.textContent = time.toFixed(2);
+        valX.textContent = x.toFixed(2);
+        valV.textContent = v.toFixed(2);
+        valA.textContent = a.toFixed(2);
+    }
+
+    function updateChartDots() {
+        accelChart.data.datasets[1].data = [{ x: time, y: a }];
+        velChart.data.datasets[1].data = [{ x: time, y: v }];
+        posChart.data.datasets[1].data = [{ x: time, y: x }];
+        
+        accelChart.update();
+        velChart.update();
+        posChart.update();
+    }
+
+    function simulationLoop(timestamp) {
+        if (!isRunning) return;
+        if (!lastTimestamp) lastTimestamp = timestamp;
+        
+        let dt = (timestamp - lastTimestamp) / 1000;
+        if (dt > 0.1) dt = 0.1;
+        lastTimestamp = timestamp;
+
+        const physicsSteps = 10;
+        const subDt = dt / physicsSteps;
+
+        for (let i = 0; i < physicsSteps; i++) {
+            try { a = compiledFunc.evaluate({ t: time }); } catch(e) { a = 0; }
+            v += a * subDt;
+            x += v * subDt;
+            time += subDt;
+        }
+
+        saveStateToHistory();
+        updateVisuals();
+
+        if (time - lastChartUpdateTime > 0.05) {
+            accelChart.data.datasets[0].data.push({ x: time, y: a });
+            velChart.data.datasets[0].data.push({ x: time, y: v });
+            posChart.data.datasets[0].data.push({ x: time, y: x });
+            
+            updateChartDots();
+            lastChartUpdateTime = time;
+        }
+
+        requestAnimationFrame(simulationLoop);
+    }
+
+    // --- Time Scrubbing ---
+    timeSlider.addEventListener('input', (e) => {
+        if (isRunning) {
+            isRunning = false;
+            startBtn.textContent = 'Resume';
+            startBtn.classList.remove('running');
+        }
+
+        const targetT = parseFloat(e.target.value);
+        sliderTimeDisplay.textContent = targetT.toFixed(2) + " s";
+
+        let closest = historyData[0];
+        let minDiff = Infinity;
+        for (let state of historyData) {
+            let diff = Math.abs(state.t - targetT);
+            if (diff < minDiff) { minDiff = diff; closest = state; }
+            if (state.t > targetT) break;
+        }
+
+        if (closest) {
+            time = closest.t;
+            x = closest.x;
+            v = closest.v;
+            a = closest.a;
+            
+            updateVisuals();
+            updateChartDots();
+        }
+    });
+
+    // --- Event Listeners ---
+    startBtn.addEventListener('click', () => {
+        if (isRunning) {
+            isRunning = false;
+            startBtn.textContent = 'Resume';
+            startBtn.classList.remove('running');
+        } else {
+            if (time === 0 && historyData.length <= 1) {
+                if (!initSimulation()) return;
+            } else if (time < historyData[historyData.length - 1].t) {
+                historyData = historyData.filter(h => h.t <= time);
+                [accelChart, velChart, posChart].forEach(c => {
+                    c.data.datasets[0].data = c.data.datasets[0].data.filter(d => d.x <= time);
+                });
+            }
+
+            isRunning = true;
+            lastTimestamp = 0; 
+            startBtn.textContent = 'Pause';
+            startBtn.classList.add('running');
+            requestAnimationFrame(simulationLoop);
+        }
+    });
+
+    resetBtn.addEventListener('click', () => {
+        isRunning = false;
+        startBtn.textContent = 'Start Simulation';
+        startBtn.classList.remove('running');
+        timeSlider.max = 0;
+        timeSlider.value = 0;
+        sliderTimeDisplay.textContent = "0.00 s";
+        initSimulation(); 
+    });
+
+    objectSelect.addEventListener('change', (e) => {
+        avatarEl.textContent = e.target.value;
+        updateVisuals();
+    });
+    
+    helpBtn.addEventListener('click', () => {
+        instructionsPanel.style.display = instructionsPanel.style.display === 'block' ? 'none' : 'block';
+    });
+
+    toggleVelBtn.addEventListener('click', () => {
+        velChartBox.classList.toggle('visible');
+        toggleVelBtn.classList.toggle('active');
+    });
+
+    togglePosBtn.addEventListener('click', () => {
+        posChartBox.classList.toggle('visible');
+        togglePosBtn.classList.toggle('active');
+    });
+
+    zoomScaleInput.addEventListener('input', updateVisuals);
+
+    initSimulation();
+</script>
+
+</body>
+</html>
