@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Galileo's Pattern: Recursive Solidification</title>
+<style>
+  :root {
+    --bg: #070a10; --panel: #111824; --text: #e2ecff;
+    --gold: #d7a43a; --edge: #26364a;
+    --base-monochrome: #2c3e50;
+    --blue-tip: #4da6ff;
+  }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 2rem; margin: 0; min-height: 100vh;
+  }
+  h1 {
+    margin: 0 0 1.05rem 0; color: var(--gold); font-size: 2rem; font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  .controls {
+    background: var(--panel); border: 1px solid var(--edge);
+    padding: 1rem; border-radius: 12px;
+    display: flex; gap: 1rem; margin-bottom: 1.5rem; align-items: center; flex-wrap: wrap;
+    box-shadow: 0 12px 34px rgba(0,0,0,0.34);
+    min-height: 60px; transition: opacity 0.3s;
+    width: 100%; max-width: 1150px; box-sizing: border-box;
+  }
+  button {
+    background: #152234; color: #dce9ff; border: 1px solid #344860;
+    padding: 0.6rem 1.2rem; border-radius: 999px; cursor: pointer;
+    font-weight: bold; transition: 0.2s;
+  }
+  button:hover:not(:disabled) { background: #244361; border-color: #6ba8ff; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  
+  button.play { background: #1d4a35; border-color: #438665; margin-left: auto; display: none; }
+  button.play.ready { display: inline-block; }
+  button.play:hover:not(:disabled) { background: #286348; }
+
+  .range-wrap {
+    display: flex; align-items: center; gap: 0.75rem;
+    padding: 0.25rem 0.2rem;
+  }
+  .range-wrap label {
+    color: #9fb2cf; font-size: 0.9rem; font-weight: bold; white-space: nowrap;
+  }
+  .range-wrap input[type="range"] {
+    width: 140px;
+    accent-color: var(--blue-tip);
+    cursor: pointer;
+  }
+  .range-value {
+    min-width: 2.25rem; text-align: center; font-weight: 800; color: #eaf3ff;
+    background: #182436; border: 1px solid #2d4563; padding: 0.3rem 0.55rem; border-radius: 999px;
+  }
+
+  .layout { display: flex; gap: 1.5rem; max-width: 1150px; width: 100%; justify-content: center; align-items: stretch; }
+  svg {
+    background: #030d1a; border: 1px solid var(--edge);
+    border-radius: 12px; box-shadow: 0 12px 34px rgba(0,0,0,0.5);
+  }
+  .info-panel {
+    background: var(--panel); border: 1px solid var(--edge);
+    border-radius: 12px; padding: 1.5rem; width: 340px;
+    display: flex; flex-direction: column; gap: 1rem; box-sizing: border-box;
+  }
+  .info-panel h3 { margin: 0 0 0.5rem 0; font-size: 1.2rem; color: var(--gold); border-bottom: 1px solid var(--edge); padding-bottom: 0.5rem; }
+  .stat-row { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 0.5rem; gap: 1rem; }
+  .stat-label { color: #8fa3c2; font-size: 0.95rem; font-weight: 600; white-space: nowrap; }
+  .stat-value { color: #fff; font-size: 1.05rem; font-weight: bold; text-align: right; }
+  .stat-value.highlight { color: var(--blue-tip); }
+  .stat-value sup, .stat-value sub { font-size: 0.68em; line-height: 0; }
+  
+  #observations-container::-webkit-scrollbar { width: 6px; }
+  #observations-container::-webkit-scrollbar-track { background: rgba(0,0,0,0.15); border-radius: 4px; }
+  #observations-container::-webkit-scrollbar-thumb { background: #344860; border-radius: 4px; }
+
+  .patch-row { 
+    border-bottom: 1px solid rgba(255,255,255,0.03); 
+    padding: 0.5rem; 
+    border-radius: 6px; 
+    cursor: pointer; 
+    transition: background 0.2s, box-shadow 0.2s;
+    border: 1px solid transparent;
+  }
+  .patch-row:hover { background: rgba(255,255,255,0.05); }
+  .patch-row.active { 
+    background: rgba(77, 166, 255, 0.08); 
+    border: 1px solid rgba(77, 166, 255, 0.3);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  }
+
+  .conclusion {
+    margin-top: auto; padding: 1rem; background: rgba(77, 166, 255, 0.05);
+    border: 1px solid rgba(77, 166, 255, 0.2); border-radius: 8px;
+    color: #b3cce6; font-size: 0.95rem; line-height: 1.5;
+  }
+</style>
+</head>
+<body>
+
+  <h1>Galileo's Pattern: Sequential Assembly</h1>
+
+  <div class="controls" id="btn-container">
+    <div class="range-wrap">
+      <label for="col-slider">Columns:</label>
+      <input id="col-slider" type="range" min="6" max="20" step="1" value="20" oninput="changeTotalCols(this.value)">
+      <span class="range-value" id="val-cols">20</span>
+    </div>
+
+    <div class="range-wrap" style="margin-left: 0.5rem;">
+      <label for="m-slider">Group Size (m):</label>
+      <input id="m-slider" type="range" min="2" max="10" step="1" value="2" 
+             oninput="document.getElementById('val-m-slider').innerText = this.value" 
+             onchange="selectM(parseInt(this.value))">
+      <span class="range-value" id="val-m-slider">2</span>
+    </div>
+
+    <button onclick="resetPattern()" id="btn-reset" style="margin-left:auto;">↺ Start Over</button>
+    <button onclick="playAnimation()" class="play" id="play-btn">▶ Start Reassembly</button>
+  </div>
+
+  <div class="layout">
+    <svg id="canvas" width="680" height="700"></svg>
+
+    <div class="info-panel">
+      <h3>Pattern Metrics</h3>
+      <div class="stat-row">
+        <span class="stat-label">Group Sizes:</span>
+        <span class="stat-value" id="val-m" style="font-size: 0.95rem; color: #b3cce6;">-</span>
+      </div>
+      <div class="stat-row" style="border-bottom: none;">
+        <span class="stat-label">Composite Block:</span>
+        <span class="stat-value highlight" id="val-area">-</span>
+      </div>
+
+      <h3 style="margin-top: 0.5rem; border-top: 1px solid var(--edge); padding-top: 1rem;">Area Observations</h3>
+      <div id="observations-container" style="display: flex; flex-direction: column; gap: 0.3rem; max-height: 420px; overflow-y: auto; padding-right: 8px;">
+        <div style="color:#8fa3c2; font-size:0.9rem; text-align:center; padding-top: 1rem;">Select a group size to view patch areas.</div>
+      </div>
+
+      <div class="conclusion" id="conclusion-box">
+        Adjust the sliders to choose the number of columns and select a group size <strong>m</strong>.
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const svg = document.getElementById('canvas');
+    const playBtn = document.getElementById('play-btn');
+    const valM = document.getElementById('val-m');
+    const valArea = document.getElementById('val-area');
+    const valCols = document.getElementById('val-cols');
+    const colSlider = document.getElementById('col-slider');
+    const mSlider = document.getElementById('m-slider');
+    const valMSlider = document.getElementById('val-m-slider');
+    const conclusionBox = document.getElementById('conclusion-box');
+    const btnContainer = document.getElementById('btn-container');
+
+    const NS = 'http://www.w3.org/2000/svg';
+    const COLORS = ['#2e4a6e', '#365e44', '#75542b', '#483c6b', '#6b3c5a', '#2e4a6e', '#365e44', '#75542b', '#483c6b', '#6b3c5a'];
+    const TEXT_COLORS = ['#6fa3e8', '#6cae82', '#d6a058', '#a48ee6', '#d683b5', '#6fa3e8', '#6cae82', '#d6a058', '#a48ee6', '#d683b5'];
+    const MONO = '#2c3e50', TIP = '#4da6ff';
+
+    const state = {
+      m: 0,
+      prevM: 1,
+      level: 1,
+      unitArea: 1, // Represents the area of a single "small square" on the current grid
+      phase: 'idle',
+      playing: false,
+      totalCols: 20,
+      mHistory: []
+    };
+
+    const renderState = {
+      groupQ: {}, activeGroup: 0,
+      cascades: {},
+      counterRiseQ: 0, solidifyQ: 0,
+      rescaleFadeQ: 0, rescaleQ: 0,
+      highlightGroup: 0
+    };
+
+    let raf = null;
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+    function E(name, attrs={}, parent=svg) {
+      const e = document.createElementNS(NS, name);
+      for(const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+      if(parent) parent.appendChild(e);
+      return e;
+    }
+    function R(x, y, w, h, a={}) { return E('rect', {x, y, width: w, height: h, ...a}); }
+    function L(x1, y1, x2, y2, a={}) { return E('line', {x1, y1, x2, y2, ...a}); }
+    function T(x, y, s, a={}) { const e = E('text', {x, y, ...a}); e.textContent = s; return e; }
+
+    function clamp(x, a, b) { return Math.max(a, Math.min(b, x)); }
+    function lerp(a, b, t) { return a + (b - a) * t; }
+    function smooth(t) { return t * t * (3 - 2 * t); }
+    function rgba(hex, a) {
+      const n = parseInt(hex.slice(1), 16);
+      return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+    }
+
+    function layout() {
+      const W = 680, H = 700, margin = {l: 32, r: 22, t: 55, b: 62};
+      const totalCols = state.totalCols;
+      const maxH = Math.max(3, 2 * totalCols - 1);
+      const u = Math.min((W - margin.l - margin.r)/totalCols, (H - margin.t - margin.b)/maxH);
+      const plotW = totalCols * u;
+      const x0 = margin.l + (W - margin.l - margin.r - plotW)/2;
+      return {W, H, margin, totalCols, maxH, u, plotW, x0, y0: H - margin.b, macro: state.m * u};
+    }
+
+    function completeGroups() {
+      return state.m > 0 ? Math.floor(state.totalCols / state.m) : 0;
+    }
+
+    function updateGroupSizeDisplay() {
+      if (!state.mHistory.length) {
+        valM.innerHTML = '-';
+        return;
+      }
+      valM.innerHTML = state.mHistory.map((m, i) => `m<sub>${i+1}</sub>=${m}`).join(', ');
+    }
+
+    function blockExprOnly() {
+      if (!state.mHistory.length) return '-';
+      return state.mHistory.map((m, i) => `m<sub>${i+1}</sub><sup>2</sup>`).join(' &times; ');
+    }
+
+    function updateNewBlockDisplay() {
+      if (!state.mHistory.length) {
+        valArea.innerHTML = '-';
+        return;
+      }
+      const expr = blockExprOnly();
+      // Composite block area = base unit area * current m^2
+      const compositeBlockArea = state.unitArea * (state.m * state.m);
+      valArea.innerHTML = `${expr} = ${compositeBlockArea}`;
+    }
+
+    function toggleHighlight(j) {
+      renderState.highlightGroup = renderState.highlightGroup === j ? 0 : j;
+      updateObservations();
+      render();
+    }
+
+    function updateObservations() {
+      const container = document.getElementById('observations-container');
+      if (state.m === 0) {
+        container.innerHTML = '<div style="color:#8fa3c2; font-size:0.9rem; text-align:center; padding-top: 1rem;">Select a group size to view patch areas.</div>';
+        return;
+      }
+      
+      const groups = completeGroups();
+      const compositeBlockArea = state.unitArea * (state.m * state.m);
+      let html = '';
+      
+      for(let j = 1; j <= groups; j++) {
+        const odd = 2 * j - 1;
+        const c = COLORS[(j-1) % COLORS.length];
+        const tc = TEXT_COLORS[(j-1) % TEXT_COLORS.length];
+        const groupArea = odd * compositeBlockArea;
+        const isActive = renderState.highlightGroup === j;
+        const activeClass = isActive ? 'active' : '';
+        
+        html += `
+          <div class="stat-row patch-row ${activeClass}" onclick="toggleHighlight(${j})">
+            <span class="stat-label" style="display:flex; align-items:center; font-size: 0.9rem;">
+              <span style="display:inline-block; width:12px; height:12px; background:${c}; margin-right:8px; border-radius:2px; box-shadow: 0 0 2px rgba(0,0,0,0.5);"></span>
+              Patch ${j}:
+            </span>
+            <span class="stat-value" style="font-size: 0.95rem;">
+              <span style="color:${tc}; opacity: 0.8; font-weight:normal;">${odd} &times; ${compositeBlockArea} = </span> 
+              <span style="color:${tc}; text-shadow: 0 0 4px rgba(0,0,0,0.4);">${groupArea}</span>
+            </span>
+          </div>
+        `;
+      }
+
+      html += `
+        <div style="margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px solid rgba(255,255,255,0.05); font-size: 0.85rem; color: #8fa3c2; line-height: 1.5;">
+          <strong>General formula:</strong><br>
+          Patch n : (2n - 1) &times; m&sup2; = base &times; height<br>
+          <span style="opacity: 0.75;">where base is m and height is (2n - 1) &times; m</span>
+        </div>
+      `;
+
+      container.innerHTML = html;
+    }
+
+    function groupInfo(j) {
+      const m = state.m, base = 2*m*(j-1), local = Array.from({length:m}, (_,i)=>2*i+1);
+      const heights = local.map(v=>base+v), odd = 2*j-1, target = base+m;
+      return {m, j, base, local, heights, odd, target};
+    }
+
+    function planFor(j) {
+      const G = groupInfo(j), plan = [], pairs = Math.floor(G.m/2);
+      for(let q=0; q<pairs; q++) {
+        let left, right;
+        if(G.m % 2 === 0) { left = G.m/2 - 1 - q; right = G.m/2 + q; }
+        else { const c = Math.floor(G.m/2); left = c - 1 - q; right = c + 1 + q; }
+        plan.push({left, right, count: G.m - G.local[left]});
+      }
+      return plan;
+    }
+
+    function baseCells(G) { const s=new Set(); for(let i=0;i<G.m;i++) for(let r=1;r<=G.heights[i];r++) s.add(`${i},${r}`); return s; }
+    function flatCells(G) { const s=new Set(); for(let i=0;i<G.m;i++) for(let r=1;r<=G.target;r++) s.add(`${i},${r}`); return s; }
+    function removeSource(s, G, tr) { for(let r=G.base+G.m+1; r<=G.base+G.m+tr.count; r++) s.delete(`${tr.right},${r}`); }
+    function applyTransfer(s, G, tr) { removeSource(s, G, tr); for(let rr=G.local[tr.left]+1; rr<=G.m; rr++) s.add(`${tr.left},${G.base+rr}`); }
+
+    function transferState(j, q) {
+      const G = groupInfo(j), plan = planFor(j);
+      if(!plan.length) return {cells: flatCells(G), move: null};
+      q = clamp(q, 0, 1);
+      if(q <= 0.02) return {cells: baseCells(G), move: null};
+      if(q >= 0.98) return {cells: flatCells(G), move: null};
+
+      const raw = q * plan.length, step = Math.min(plan.length-1, Math.floor(raw)), frac = raw - step;
+      const cells = baseCells(G);
+      for(let s=0; s<step; s++) applyTransfer(cells, G, plan[s]);
+      const tr = plan[step];
+      removeSource(cells, G, tr);
+      return {cells, move: {...tr, frac}};
+    }
+
+    function drawSq(x, y, u, fill, alpha = 1, stroke = fill) {
+      R(x, y, u - 0.65, u - 0.65, {fill: fill, stroke: stroke, 'stroke-width': 0.68, opacity: alpha});
+    }
+
+    async function animateValue(duration, onUpdate) {
+      return new Promise(resolve => {
+        let start = null;
+        function step(timestamp) {
+          if (!start) start = timestamp;
+          let progress = (timestamp - start) / duration;
+          if (progress >= 1) progress = 1;
+          onUpdate(progress);
+          if (progress < 1) raf = requestAnimationFrame(step);
+          else resolve();
+        }
+        raf = requestAnimationFrame(step);
+      });
+    }
+
+    function updateButtons() {
+      if (state.playing) {
+        btnContainer.style.pointerEvents = 'none';
+        btnContainer.style.opacity = '0.5';
+        colSlider.disabled = true;
+        mSlider.disabled = true;
+      } else {
+        btnContainer.style.pointerEvents = 'auto';
+        btnContainer.style.opacity = '1';
+        
+        // Prevent breaking state recursive history by dragging sliders during 'grouped' phase
+        colSlider.disabled = (state.phase !== 'idle');
+        mSlider.disabled = (state.phase === 'grouped' && state.level > 1);
+        
+        if (state.phase === 'idle' || state.phase === 'solid') playBtn.classList.remove('ready');
+        else playBtn.classList.add('ready');
+      }
+    }
+
+    function resetRenderState() {
+      renderState.groupQ = {};
+      renderState.activeGroup = 0;
+      renderState.counterRiseQ = 0;
+      renderState.solidifyQ = 0;
+      renderState.rescaleFadeQ = 0;
+      renderState.rescaleQ = 0;
+      renderState.highlightGroup = 0;
+      renderState.cascades = {};
+      const groups = completeGroups();
+      for(let j=1; j<=groups; j++) {
+        renderState.groupQ[j] = 0;
+        renderState.cascades[j] = { completed: 0, activeStep: 0, frac: 0 };
+      }
+    }
+
+    function resetPattern() {
+      if (state.playing) return;
+      state.m = 0;
+      state.prevM = 1;
+      state.level = 1;
+      state.unitArea = 1;
+      state.phase = 'idle';
+      state.mHistory = [];
+
+      mSlider.value = "2";
+      valMSlider.innerText = "2";
+      
+      updateGroupSizeDisplay();
+      updateNewBlockDisplay();
+      updateObservations();
+      conclusionBox.innerHTML = 'Adjust the sliders to choose the number of columns and select a group size <strong>m</strong>.';
+      resetRenderState();
+      updateButtons();
+      render();
+    }
+
+    function changeTotalCols(value) {
+      if (state.playing) return;
+      const v = Math.max(6, Math.min(20, parseInt(value, 10) || 20));
+      state.totalCols = v;
+      valCols.textContent = String(v);
+      colSlider.value = String(v);
+      resetPattern();
+    }
+
+    function selectM(m) {
+      if (state.playing) return;
+
+      mSlider.value = String(m);
+      valMSlider.innerText = String(m);
+
+      if (state.phase === 'solid') {
+        state.prevM = state.m;
+        state.m = m;
+        state.level += 1;
+        state.unitArea *= (state.prevM * state.prevM); 
+        state.mHistory.push(m);
+        updateGroupSizeDisplay();
+        updateNewBlockDisplay();
+        updateObservations();
+        runRescaleSequence();
+      } else if (state.phase === 'idle' || (state.phase === 'grouped' && state.level === 1)) {
+        state.m = m;
+        state.level = 1;
+        state.unitArea = 1;
+        state.mHistory = [m];
+        updateGroupSizeDisplay();
+        updateNewBlockDisplay();
+        updateObservations();
+        state.phase = 'grouped';
+        conclusionBox.innerHTML = `Group size m<sub>1</sub> = ${m} selected. Each new composite block contains <strong>m&sup2;</strong> original squares. Click <strong>Start Reassembly</strong>.`;
+        resetRenderState();
+        updateButtons();
+        render();
+      }
+    }
+
+    async function runRescaleSequence() {
+      state.playing = true;
+      state.phase = 'rescale_fade';
+      renderState.rescaleFadeQ = 0;
+      renderState.rescaleQ = 0;
+      conclusionBox.innerHTML = `Preparing the next scale: removing the extra old columns before the new grouping with m<sub>${state.level}</sub> = ${state.m}.`;
+      updateButtons();
+
+      await animateValue(900, t => { renderState.rescaleFadeQ = smooth(t); render(); });
+
+      state.phase = 'rescaling';
+      conclusionBox.innerHTML = `Rescaling the surviving columns, then bringing in the new columns for the next level.`;
+      await animateValue(2150, t => { renderState.rescaleQ = smooth(t); render(); });
+
+      state.phase = 'grouped';
+      resetRenderState();
+      conclusionBox.innerHTML = `Group size m<sub>${state.level}</sub> = ${state.m} selected at Level ${state.level}. Click <strong>Start Reassembly</strong>.`;
+      state.playing = false;
+      updateButtons();
+      render();
+    }
+
+    async function playAnimation() {
+      if (state.playing || state.m === 0) return;
+      state.playing = true;
+      renderState.highlightGroup = 0; // Clear any active highlights
+      updateObservations();
+      updateButtons();
+
+      const groups = completeGroups();
+
+      state.phase = 'group_rearrange';
+      for (let j = 1; j <= groups; j++) {
+        renderState.activeGroup = j;
+        conclusionBox.innerHTML = j === 1
+          ? `<strong>Stage 1:</strong> Rearranging j = 1 from the inside out.`
+          : `<strong>Stage 1:</strong> Repeating the same rearrangement for j = ${j}.`;
+
+        const duration = (j === 1) ? 2100 : 1200;
+        await animateValue(duration, t => {
+          renderState.groupQ[j] = t;
+          render();
+        });
+        renderState.groupQ[j] = 1;
+        render();
+        await sleep(180);
+      }
+      renderState.activeGroup = 0;
+
+      state.phase = 'prime_tips';
+      for (let j = 1; j <= groups; j++) {
+        renderState.cascades[j].completed = 1;
+        renderState.cascades[j].activeStep = 0;
+        renderState.cascades[j].frac = 0;
+      }
+      conclusionBox.innerHTML = `<strong>Stage 2:</strong> Coloring the top tips blue so each begins as a numbered 1-block.`;
+      render();
+      await sleep(780);
+
+      state.phase = 'cascade';
+      conclusionBox.innerHTML = `<strong>Stage 3:</strong> The blue 1-blocks slide downward and count the completed composite blocks.`;
+      const cascades = [];
+      for (let j = 1; j <= groups; j++) cascades.push(animateCascade(j));
+      await Promise.all(cascades);
+
+      state.phase = 'counter_rise';
+      conclusionBox.innerHTML = `<strong>Stage 4:</strong> Moving each final count above its completed composite column.`;
+      await animateValue(1150, t => { renderState.counterRiseQ = smooth(t); render(); });
+
+      state.phase = 'solidify';
+      conclusionBox.innerHTML = `<strong>Stage 5:</strong> Solidifying the counted groups into clean blue composite blocks.`;
+      await animateValue(1150, t => { renderState.solidifyQ = smooth(t); render(); });
+
+      state.phase = 'solid';
+      conclusionBox.innerHTML = `<strong>Transformation complete!</strong> The pattern is recovered as 1, 3, 5... You can click the patches on the right to highlight their original structures.<br><br>Select another <strong>m</strong> to rescale and continue.`;
+      state.playing = false;
+      updateButtons();
+      render();
+    }
+
+    async function animateCascade(j) {
+      const odd = 2 * j - 1;
+      render();
+      await sleep(280 + j * 18);
+      for (let step = 1; step < odd; step++) {
+        await animateValue(720, t => {
+          renderState.cascades[j].activeStep = step;
+          renderState.cascades[j].frac = t;
+          render();
+        });
+        renderState.cascades[j].completed = step + 1;
+        renderState.cascades[j].activeStep = 0;
+        renderState.cascades[j].frac = 0;
+        render();
+      }
+    }
+
+    function drawRecursiveStart(LY) {
+      const q = renderState.rescaleQ;
+      const fadeQ = renderState.rescaleFadeQ;
+      const sourceCols = Math.floor(state.totalCols / state.prevM);
+      const keepCols = Math.min(state.m, sourceCols);
+      const sourceU = state.prevM * LY.u;
+      const targetSize = LY.u;
+
+      if (state.phase === 'rescale_fade') {
+        for (let col = 1; col <= sourceCols; col++) {
+          const h = 2*col - 1;
+          const x = LY.x0 + (col-1) * sourceU;
+          const alpha = col <= keepCols ? 1 : 1 - fadeQ;
+          if (alpha <= 0.002) continue;
+
+          for (let r = 1; r <= h; r++) {
+            const y = LY.y0 - r * sourceU;
+            R(x, y, sourceU, sourceU, {
+              fill: rgba(TIP, 0.96 * alpha),
+              stroke: rgba('#ffffff', 0.72 * alpha),
+              'stroke-width': 1.4,
+              rx: 2,
+              opacity: alpha
+            });
+          }
+        }
+        return;
+      }
+
+      for (let col = 1; col <= state.totalCols; col++) {
+        const h = 2*col - 1;
+        const tx = LY.x0 + (col-1)*targetSize;
+        let local, sx, ss;
+
+        if (col <= keepCols) {
+          local = smooth(clamp(q / 0.72, 0, 1));
+          sx = LY.x0 + (col-1) * sourceU;
+          ss = sourceU;
+        } else {
+          const idx = col - keepCols - 1;
+          const newcomers = Math.max(1, state.totalCols - keepCols);
+          const delay = 0.36 + 0.42 * (idx / newcomers);
+          local = smooth(clamp((q - delay) / Math.max(0.18, 0.96 - delay), 0, 1));
+          sx = LY.W + 70 + idx * 10;
+          ss = targetSize;
+        }
+
+        const x = lerp(sx, tx, local);
+        const size = lerp(ss, targetSize, local);
+
+        for (let r = 1; r <= h; r++) {
+          let sourceY;
+          if (col <= keepCols) sourceY = LY.y0 - r * ss; 
+          else sourceY = LY.y0 - r * targetSize;
+          const targetY = LY.y0 - r * targetSize;
+          const y = lerp(sourceY, targetY, local);
+
+          R(x, y, Math.max(0.5, size - 0.65), Math.max(0.5, size - 0.65), {
+            fill: rgba(TIP, 0.92),
+            stroke: rgba('#ffffff', 0.5),
+            'stroke-width': 1,
+            rx: 1.5
+          });
+        }
+      }
+    }
+
+    function drawCascadeBlock(LY, j, G, c, gx, alpha = 1) {
+      const C = renderState.cascades[j];
+      const odd = G.odd;
+      const riseQ = renderState.counterRiseQ || 0;
+
+      for(const key of flatCells(G)) {
+        const [ci, rr] = key.split(',').map(Number);
+        const tierFromTop = odd - Math.floor((rr - 1) / G.m);
+        const hasBeenCounted = tierFromTop <= C.completed;
+        const fill = hasBeenCounted ? TIP : c;
+        drawSq(gx + ci*LY.u, LY.y0 - rr*LY.u, LY.u, fill, alpha, rgba('#000000', 0.4));
+      }
+
+      if (C.activeStep > 0 && C.activeStep < odd) {
+        const yStart = LY.y0 - (odd - C.activeStep + 1) * LY.macro;
+        const yEnd = LY.y0 - (odd - C.activeStep) * LY.macro;
+        const y = lerp(yStart, yEnd, smooth(C.frac));
+
+        R(gx, y, LY.macro, LY.macro, {
+          fill: rgba(TIP, 0.46), stroke: '#dbeeff', 'stroke-width': 1.7, rx: 2, opacity: alpha
+        });
+
+        const count = C.frac > 0.72 ? C.activeStep + 1 : C.activeStep;
+        T(gx + LY.macro/2, y + LY.macro/2 + Math.max(5, LY.macro*0.12), String(count), {
+          fill: '#ffffff', 'font-size': Math.max(16, LY.macro*0.45), 'font-weight': '900',
+          'text-anchor': 'middle', 'style': 'text-shadow: 0 3px 6px rgba(0,0,0,0.9)', opacity: alpha
+        });
+      }
+
+      if (C.activeStep === 0 && C.completed > 0) {
+        const landedY = LY.y0 - (odd - C.completed + 1) * LY.macro + LY.macro/2 + Math.max(5, LY.macro*0.12);
+        const finalY = LY.y0 - odd * LY.macro - Math.max(10, LY.macro*0.18);
+        const labelY = (C.completed === odd) ? lerp(landedY, finalY, riseQ) : landedY;
+
+        T(gx + LY.macro/2, labelY, String(C.completed), {
+          fill: '#ffffff', 'font-size': Math.max(16, LY.macro*0.45), 'font-weight': '900',
+          'text-anchor': 'middle', 'style': 'text-shadow: 0 3px 6px rgba(0,0,0,0.9)', opacity: alpha
+        });
+      }
+
+      if (renderState.solidifyQ > 0) {
+        const sq = renderState.solidifyQ;
+        for (let b = 1; b <= odd; b++) {
+          R(gx, LY.y0 - (odd - b + 1)*LY.macro, LY.macro, LY.macro, {
+            fill: rgba(TIP, sq), stroke: rgba('#ffffff', 0.78 * sq),
+            'stroke-width': 1.5 * sq, rx: 2, opacity: alpha
+          });
+        }
+
+        if (C.activeStep === 0 && C.completed === odd) {
+          const finalY = LY.y0 - odd * LY.macro - Math.max(10, LY.macro*0.18);
+          T(gx + LY.macro/2, finalY, String(C.completed), {
+            fill: '#ffffff', 'font-size': Math.max(16, LY.macro*0.45),
+            'font-weight': '900', 'text-anchor': 'middle',
+            'style': 'text-shadow: 0 3px 6px rgba(0,0,0,0.9)', opacity: alpha
+          });
+        }
+      }
+    }
+
+    function renderIdle(LY) {
+      for(let col = 1; col <= state.totalCols; col++) {
+        const h = 2*col - 1;
+        const x = LY.x0 + (col-1)*LY.u;
+        const xCenter = x + LY.u/2;
+        for(let r=1; r<=h; r++) drawSq(x, LY.y0 - r*LY.u, LY.u, MONO, 1, rgba('#000000', 0.42));
+        T(xCenter, LY.y0 - h*LY.u - 10, String(h), {fill: '#ffffff', 'font-size': Math.max(10, LY.u * 0.38), 'font-weight': 800, 'text-anchor': 'middle'});
+        T(xCenter, LY.y0 + 32, String(col), {fill: '#7f96ba', 'font-size': Math.max(10, LY.u * 0.38), 'font-weight': 700, 'text-anchor': 'middle'});
+      }
+    }
+
+    function render() {
+      svg.innerHTML = '';
+      const LY = layout();
+
+      if (state.phase === 'idle') {
+        renderIdle(LY);
+        return;
+      }
+
+      if (state.phase === 'rescale_fade' || state.phase === 'rescaling') {
+        drawRecursiveStart(LY);
+        return;
+      }
+
+      const groups = completeGroups();
+
+      for (let j = 1; j <= groups; j++) {
+        const G = groupInfo(j);
+        const c = COLORS[(j-1) % COLORS.length];
+        const gx = LY.x0 + (j-1) * state.m * LY.u;
+        
+        // Highlight active groups when clicked from observation panel
+        const groupAlpha = (renderState.highlightGroup === 0 || renderState.highlightGroup === j) ? 1 : 0.15;
+
+        let q_transfer = renderState.groupQ[j] || 0;
+        if (['prime_tips', 'cascade', 'counter_rise', 'solidify', 'solid'].includes(state.phase)) q_transfer = 1;
+
+        const trans = transferState(j, q_transfer);
+
+        if (renderState.cascades[j] && renderState.cascades[j].completed > 0) {
+          drawCascadeBlock(LY, j, G, c, gx, groupAlpha);
+        } else {
+          for(const key of trans.cells) {
+            const [ci, rr] = key.split(',').map(Number);
+            drawSq(gx + ci*LY.u, LY.y0 - rr*LY.u, LY.u, c, groupAlpha, rgba('#000000', 0.4));
+          }
+
+          if (trans.move) {
+            const mv = trans.move;
+            const t = smooth(mv.frac);
+            const sx = gx + mv.right*LY.u, sy = LY.y0 - (G.base + G.m + mv.count)*LY.u;
+            const tx = gx + mv.left*LY.u,  ty = LY.y0 - (G.base + G.m)*LY.u;
+            const mx = lerp(sx, tx, t), my = lerp(sy, ty, t);
+
+            R(mx, my, LY.u - 0.7, mv.count*LY.u - 0.7, {fill: rgba(TIP, 0.72), stroke: '#e5f2ff', 'stroke-width': 1.2, rx: 1.5, opacity: groupAlpha});
+            for(let q=1; q<mv.count; q++) L(mx, my+q*LY.u, mx+LY.u-0.7, my+q*LY.u, {stroke: 'rgba(255,255,255,0.3)', 'stroke-width': 0.7, opacity: groupAlpha});
+          }
+        }
+      }
+
+      // Background columns alpha
+      const bgAlpha = renderState.highlightGroup === 0 ? 1 : 0.15;
+      for(let col = groups * state.m + 1; col <= state.totalCols; col++) {
+        const h = 2*col - 1;
+        const x = LY.x0 + (col-1)*LY.u;
+        for(let r=1; r<=h; r++) drawSq(x, LY.y0 - r*LY.u, LY.u, '#111824', bgAlpha, 'rgba(0,0,0,0.2)');
+      }
+    }
+
+    window.onload = () => {
+      changeTotalCols(20);
+      resetPattern();
+    };
+  </script>
+</body>
+</html>

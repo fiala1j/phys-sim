@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Galileo's Pattern: Kinematic Scaling & Speculation</title>
+<style>
+  :root {
+    --bg: #0b111a; 
+    --panel: #151e2e; 
+    --text: #e2ecff;
+    --gold: #f0c257; 
+    --edge: #2a3a54; 
+    --blue-tip: #4da6ff;
+    --axis: #c2d4ec; 
+    --muted: #8fa3c2; 
+    --guide: #4a5d7c;
+    --accent: #00e5ff;
+    --warn: #ff5555;
+  }
+  
+  * { box-sizing: border-box; }
+  
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 2.5rem; margin: 0; min-height: 100vh;
+    line-height: 1.5;
+  }
+
+  h1 {
+    margin: 0 0 1.5rem 0; color: var(--text);
+    font-size: 2.25rem; font-weight: 700; letter-spacing: -0.02em;
+  }
+  h1 span { color: var(--gold); }
+
+  /* Controls Container */
+  .controls-container {
+    background: var(--panel); border: 1px solid var(--edge);
+    padding: 1.25rem 1.5rem; border-radius: 16px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+    width: 100%; max-width: 1120px; margin-bottom: 2rem;
+    position: relative; min-height: 85px;
+    display: flex; align-items: center;
+  }
+
+  .control-group {
+    display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap;
+    width: 100%; transition: opacity 0.3s;
+  }
+  .hidden {
+    opacity: 0; pointer-events: none; position: absolute; visibility: hidden;
+  }
+  .display-none { display: none !important; }
+
+  .range-wrap { display: flex; align-items: center; gap: 1rem; flex: 1; min-width: 250px; }
+  .range-wrap label { color: var(--muted); font-size: 0.95rem; font-weight: 600; white-space: nowrap; }
+
+  /* Sliders */
+  input[type="range"] {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; max-width: 160px; background: transparent; cursor: pointer;
+  }
+  input[type="range"]::-webkit-slider-runnable-track {
+    background: #23324a; height: 6px; border-radius: 4px;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    height: 18px; width: 18px; background: var(--blue-tip);
+    border-radius: 50%; margin-top: -6px;
+    box-shadow: 0 0 10px rgba(77, 166, 255, 0.5);
+    transition: transform 0.1s;
+  }
+  input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.15); }
+  
+  .spec-slider::-webkit-slider-thumb { background: var(--accent) !important; box-shadow: 0 0 12px var(--accent) !important; }
+  #cont-slider::-webkit-slider-thumb { background: var(--warn) !important; box-shadow: 0 0 12px var(--warn) !important; }
+
+  .range-value {
+    min-width: 85px; text-align: center; font-weight: 700; color: #fff;
+    background: #101722; border: 1px solid var(--edge);
+    padding: 0.35rem 0.75rem; border-radius: 8px; font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  /* Buttons */
+  button {
+    background: #1f2d42; color: #fff; border: 1px solid var(--edge);
+    padding: 0.7rem 1.25rem; border-radius: 8px; cursor: pointer;
+    font-weight: 600; font-size: 0.95rem; transition: all 0.2s ease;
+  }
+  button:hover:not(:disabled) { background: #2a3c58; border-color: var(--blue-tip); transform: translateY(-1px); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+  
+  .scale-btn { background: #16422b; border-color: #276947; color: #a3e6c2; }
+  .scale-btn:hover:not(:disabled) { background: #1e593b; color: #fff; }
+  .scale-btn.active { background: #4a2846; border-color: #7a4273; color: #e8a5df; }
+  .scale-btn.active:hover { background: #61345b; color: #fff; }
+  
+  .spec-btn { background: #003d4d; border-color: #0088aa; color: #88eeff; }
+  .spec-btn:hover:not(:disabled) { background: #005c7a; color: #fff; box-shadow: 0 0 15px rgba(0, 229, 255, 0.4); }
+
+  /* Layout */
+  .layout {
+    display: grid; grid-template-columns: minmax(0, 1fr) 340px;
+    gap: 2rem; max-width: 1120px; width: 100%; align-items: stretch;
+  }
+  .svg-wrapper {
+    background: linear-gradient(180deg, #060e17 0%, #03080f 100%);
+    border: 1px solid var(--edge); border-radius: 16px; 
+    box-shadow: 0 15px 50px rgba(0,0,0,0.5);
+    overflow: hidden; display: flex; justify-content: center; align-items: center;
+  }
+  svg { display: block; width: 100%; height: auto; }
+
+  /* Info Panel */
+  .info-panel {
+    background: var(--panel); border: 1px solid var(--edge);
+    border-radius: 16px; padding: 1.75rem;
+    display: flex; flex-direction: column; gap: 1.2rem;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+  }
+  .info-panel h3 {
+    margin: 0; font-size: 1.25rem; color: #fff; font-weight: 600; 
+    padding-bottom: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .stat-group { display: flex; flex-direction: column; gap: 0.85rem; }
+  .stat-row { display: flex; justify-content: space-between; align-items: center; }
+  .stat-label { color: var(--muted); font-size: 0.92rem; font-weight: 500; }
+  .stat-value { color: #fff; font-size: 1.05rem; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
+  .stat-value.accent { color: var(--blue-tip); }
+
+  /* Information Cards */
+  .phase {
+    padding: 1rem 1.15rem; border-radius: 10px;
+    background: rgba(77, 166, 255, 0.08); border-left: 3px solid var(--blue-tip);
+    color: #c3d9f3; font-size: 0.95rem;
+  }
+  .phase.spec-phase { background: rgba(0, 229, 255, 0.08); border-left-color: var(--accent); }
+
+  .math-box {
+    margin-top: auto; padding: 1.15rem;
+    background: rgba(255, 255, 255, 0.03); border-radius: 10px; 
+    border: 1px solid rgba(255,255,255,0.06); color: var(--muted); font-size: 0.92rem;
+  }
+  .math-box strong { color: #fff; font-weight: 600; }
+
+  /* Selection Box */
+  .selection-box {
+    background: rgba(0, 0, 0, 0.25); border: 1px solid var(--edge);
+    border-radius: 10px; padding: 1rem; margin-top: -0.5rem;
+  }
+  .selection-header {
+    color: #fff; font-size: 0.9rem; font-weight: 600; margin-bottom: 0.75rem;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .selection-clear {
+    background: transparent; border: 1px solid var(--muted); color: var(--muted);
+    padding: 0.2rem 0.5rem; font-size: 0.75rem; border-radius: 4px; cursor: pointer;
+  }
+  .selection-clear:hover { background: rgba(255,255,255,0.1); color: #fff; }
+  .selection-list { display: flex; flex-direction: column; gap: 0.5rem; }
+  .selection-item {
+    display: flex; justify-content: space-between; align-items: center;
+    background: rgba(255,255,255,0.03); padding: 0.4rem 0.6rem; border-radius: 6px;
+  }
+
+  @media(max-width: 960px){
+    .layout { grid-template-columns: 1fr; }
+    .info-panel { width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<h1><span>Galileo's Pattern:</span> Kinematic Scaling</h1>
+
+<div class="controls-container">
+  <div class="control-group" id="scaling-controls">
+    <div class="range-wrap">
+      <label for="n-slider">Time Divisions (n):</label>
+      <input id="n-slider" type="range" min="1" max="11" step="1" value="1">
+      <span class="range-value">n = <span id="val-n">1</span></span>
+    </div>
+    <button class="scale-btn" id="scale-btn">▼ Adjust Average Speeds (1/n)</button>
+    <button class="spec-btn" id="start-spec-btn" style="margin-left: auto;">Instantaneous-speed speculation</button>
+  </div>
+
+  <div class="control-group hidden" id="spec-controls">
+    <div style="display:flex; flex-direction:column; gap:0.8rem; flex:1;">
+      <div class="range-wrap">
+        <label for="curve-slider" style="color: var(--accent); min-width: 125px;">Velocity Shape:</label>
+        <input id="curve-slider" class="spec-slider" type="range" min="-1" max="1" step="0.01" value="-0.85" disabled>
+      </div>
+      <div class="range-wrap">
+        <label for="cont-slider" style="color: var(--warn); min-width: 125px;">Close Gap:</label>
+        <input id="cont-slider" type="range" min="0" max="1" step="0.01" value="0" disabled>
+      </div>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:0.6rem; min-width: 220px;">
+      <button id="toggle-block-btn" disabled>Show Next Block (3 m/s)</button>
+      <button id="end-spec-btn">Return to kinematic scaling</button>
+    </div>
+  </div>
+</div>
+
+<div class="layout">
+  <div class="svg-wrapper">
+    <svg id="canvas" viewBox="0 0 560 850" aria-label="Average speed versus time scaling diagram"></svg>
+  </div>
+
+  <aside class="info-panel">
+    <h3 id="panel-title">Kinematic Properties</h3>
+
+    <div class="stat-group" id="scaling-stats">
+      <div class="stat-row"><span class="stat-label">Pattern</span><span class="stat-value" id="disp-pattern">2k − 1</span></div>
+      <div class="stat-row"><span class="stat-label">Time Base (Δt)</span><span class="stat-value accent" id="disp-dt">1 s</span></div>
+      <div class="stat-row"><span class="stat-label">Velocity Scale</span><span class="stat-value accent" id="disp-speed">1 ×</span></div>
+      <div class="stat-row"><span class="stat-label">Cell Area (Distance)</span><span class="stat-value" id="disp-area">1 m</span></div>
+    </div>
+
+    <div class="selection-box display-none" id="selection-panel">
+      <div class="selection-header">
+        <span>Selected Average Speeds</span>
+        <button class="selection-clear" id="clear-selection-btn">Clear</button>
+      </div>
+      <div class="selection-list" id="selection-list"></div>
+    </div>
+
+    <div class="phase" id="phase-box" style="border-left-color: var(--blue-tip);">
+      Start with unit squares: <strong>1 s</strong> wide and <strong>1 m/s</strong> high.
+    </div>
+
+    <div class="math-box" id="math-box">
+      <strong>Step 1 — Time:</strong> Move the slider. The origin and axes stay fixed while each bar narrows to Δt/n.<br><br>
+      <strong>Step 2 — Speed:</strong> Click the green button. The speeds scale by 1/n, turning the thin cells back into perfect squares.<br><br>
+      Therefore, the distance represented by one small square scales as <strong>1/n²</strong>.
+    </div>
+  </aside>
+</div>
+
+<script>
+(() => {
+  const svg = document.getElementById('canvas');
+  
+  const scalingControls = document.getElementById('scaling-controls');
+  const specControls = document.getElementById('spec-controls');
+  const nSlider = document.getElementById('n-slider');
+  const curveSlider = document.getElementById('curve-slider');
+  const contSlider = document.getElementById('cont-slider');
+  
+  const valN = document.getElementById('val-n');
+  const scaleBtn = document.getElementById('scale-btn');
+  const startSpecBtn = document.getElementById('start-spec-btn');
+  const endSpecBtn = document.getElementById('end-spec-btn');
+  const toggleBlockBtn = document.getElementById('toggle-block-btn');
+  const clearSelectionBtn = document.getElementById('clear-selection-btn');
+  
+  const panelTitle = document.getElementById('panel-title');
+  const scalingStats = document.getElementById('scaling-stats');
+  const selectionPanel = document.getElementById('selection-panel');
+  const selectionList = document.getElementById('selection-list');
+  const dispDt = document.getElementById('disp-dt');
+  const dispSpeed = document.getElementById('disp-speed');
+  const dispArea = document.getElementById('disp-area');
+  const dispPattern = document.getElementById('disp-pattern');
+  const phaseBox = document.getElementById('phase-box');
+  const mathBox = document.getElementById('math-box');
+
+  const NS = 'http://www.w3.org/2000/svg';
+  
+  const ORIGIN_X = 72;
+  const ORIGIN_Y = 790;
+  const UNIT = 110;             
+  const TIME_WINDOW = 4;        
+  const SPEED_WINDOW = 7;       
+  const MAX_N = 100;
+  const BAR_COUNT = TIME_WINDOW * MAX_N; 
+  const CHART_RIGHT = ORIGIN_X + TIME_WINDOW * UNIT;
+  const CHART_TOP = ORIGIN_Y - SPEED_WINDOW * UNIT;
+
+  const DEFAULT_VB = { x: 0, y: 0, w: 560, h: 850 };
+  const SPEC_VIEW_ONE = { x: 28, y: 430, w: 230, h: 390 };
+  const SPEC_VIEW_TWO = { x: 20, y: 230, w: 360, h: 590 };
+
+  const COLORS = [
+    ['#3a74e6','#2155bc'], ['#28a165','#137845'], ['#e38b24','#c06d11'],
+    ['#e05258','#b93036'], ['#8e5ee6','#683bc4'], ['#2ab2c4','#188796'],
+    ['#c98936','#a2661d'], ['#5d7de6','#3e5ac2'], ['#c75296','#9f3172'],
+    ['#68a34f','#457a2e']
+  ];
+
+  let state = { 
+    n: 1, xScale: 1, yScale: 1, speedScaled: false, 
+    mode: 'scaling', 
+    curveS: -0.85, 
+    curveC: 0, 
+    showBlock2: false,
+    view: { ...DEFAULT_VB },
+    selectedBlocks: new Set()
+  };
+  
+  let animationToken = 0;
+  let speculationToken = 0;
+
+  function E(name, attrs={}, parent=svg) {
+    const e = document.createElementNS(NS, name);
+    for (const [k,v] of Object.entries(attrs)) e.setAttribute(k,v);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function L(x1,y1,x2,y2,a={},parent=svg) { return E('line',{x1,y1,x2,y2,...a},parent); }
+  function R(x,y,w,h,a={},parent=svg) { return E('rect',{x,y,width:w,height:h,...a},parent); }
+  function T(x,y,s,a={},parent=svg) { const t=E('text',{x,y,...a},parent); t.textContent=s; return t; }
+  
+  function rgba(hex, a) {
+    const n = parseInt(hex.slice(1), 16);
+    return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+  }
+  
+  const clamp = (x,a,b) => Math.max(a,Math.min(b,x));
+  const lerp = (a,b,t) => a+(b-a)*t;
+  const smooth = t => t*t*(3-2*t);
+
+  function viewBoxString(v) { return `${v.x} ${v.y} ${v.w} ${v.h}`; }
+
+  function getV(k, t, S, C) {
+    const tau = t - (k - 1); 
+    const baseV = 2 * (k - 1) + 2 * tau;
+    if (k === 1) {
+      return baseV + S * 3 * (tau * tau - (2/3) * tau);
+    } else {
+      return baseV + C * S * (1 - 3 * tau * tau);
+    }
+  }
+
+  function curveKind() {
+    if (Math.abs(state.curveS) < 0.035) return 'Uniform acceleration — straight line';
+    return state.curveS < 0 ? 'Variable acceleration — concave down' : 'Variable acceleration — concave up';
+  }
+
+  function updateCurveReadout() {
+    if (state.mode !== 'speculating') return;
+    const kind = document.getElementById('curve-kind');
+    if (kind) kind.textContent = curveKind();
+
+    const gapEl = document.getElementById('gap-readout');
+    if (gapEl) {
+      if (!state.showBlock2) {
+        gapEl.textContent = 'show the next block to test continuity';
+      } else {
+        const v1 = getV(1,1,state.curveS,state.curveC);
+        const v2 = getV(2,1,state.curveS,state.curveC);
+        const gap = Math.abs(v2-v1);
+        gapEl.textContent = gap < 0.015 ? '0 m/s — curves meet' : `${gap.toFixed(2)} m/s`;
+      }
+    }
+  }
+
+  async function animateScalar(getter, setter, target, duration, tokenCheck=null) {
+    const startValue = getter();
+    return new Promise(resolve => {
+      let start = null;
+      function frame(ts) {
+        if (tokenCheck && !tokenCheck()) return resolve(false);
+        if (start === null) start = ts;
+        const raw = clamp((ts-start)/duration, 0, 1);
+        setter(lerp(startValue, target, smooth(raw)));
+        render();
+        if (raw < 1) requestAnimationFrame(frame); else resolve(true);
+      }
+      requestAnimationFrame(frame);
+    });
+  }
+
+  async function animateView(target, duration, token) {
+    const start = {...state.view};
+    return new Promise(resolve => {
+      let t0 = null;
+      function frame(ts) {
+        if (token !== speculationToken) return resolve(false);
+        if (t0 === null) t0 = ts;
+        const raw = clamp((ts-t0)/duration, 0, 1);
+        const q = smooth(raw);
+        state.view = {
+          x: lerp(start.x, target.x, q), y: lerp(start.y, target.y, q),
+          w: lerp(start.w, target.w, q), h: lerp(start.h, target.h, q)
+        };
+        render();
+        if (raw < 1) requestAnimationFrame(frame); else resolve(true);
+      }
+      requestAnimationFrame(frame);
+    });
+  }
+
+  function updatePanel() {
+    if (state.mode === 'speculating') {
+      panelTitle.textContent = 'Instantaneous Speed';
+      scalingStats.classList.add('hidden');
+      selectionPanel.classList.add('display-none');
+      phaseBox.classList.add('spec-phase');
+
+      phaseBox.innerHTML = `<strong>Area constraint:</strong> every gold curve over the first second encloses exactly <strong>1 m</strong>, so its average speed remains <strong>1 m/s</strong>.${state.showBlock2 ? '<br><br>The second interval likewise keeps area <strong>3 m</strong> and average speed <strong>3 m/s</strong>.' : ''}`;
+
+      mathBox.innerHTML = `
+        <strong style="color:var(--accent)">Current shape:</strong> <span id="curve-kind">${curveKind()}</span><br>
+        <strong>Area:</strong> A<sub>1</sub> = 1 m${state.showBlock2 ? ', &nbsp; A<sub>2</sub> = 3 m' : ''}<br>
+        <strong>Gap at t = 1 s:</strong> <span id="gap-readout">${state.showBlock2 ? '' : 'show the next block to test continuity'}</span><br><br>
+        <strong>Velocity Shape:</strong> bend the curve while keeping the area fixed. The center position is the “boring” straight-line choice <strong>v(t)=2t</strong>.<br><br>
+        ${state.showBlock2 ? '<strong>Close Gap:</strong> move the red slider to make the two area-preserving curves meet at t = 1 s. Within this family, only the straight-line choice is also slope-matched there.' : '<strong>Next:</strong> click <strong>Show Next Block</strong> to compare the 3 m interval and investigate continuity.'}
+      `;
+      updateCurveReadout();
+      return;
+    }
+
+    panelTitle.textContent = 'Kinematic Properties';
+    scalingStats.classList.remove('hidden');
+    phaseBox.classList.remove('spec-phase');
+
+    // Selection Box Logic
+    if (state.selectedBlocks.size > 0) {
+      selectionPanel.classList.remove('display-none');
+      selectionList.innerHTML = '';
+      Array.from(state.selectedBlocks).sort((a,b) => a-b).forEach(k => {
+        const odd = 2 * k - 1;
+        const v = state.speedScaled ? odd / state.n : odd;
+        const [fillColor] = COLORS[(k-1)%COLORS.length];
+        
+        const item = document.createElement('div');
+        item.className = 'selection-item';
+        item.innerHTML = `
+          <span style="display:flex; align-items:center; gap:0.6rem; color:var(--muted); font-size:0.9rem;">
+            <span style="display:inline-block; width:12px; height:12px; background:${fillColor}; border-radius:2px;"></span>
+            Block ${k}
+          </span>
+          <strong style="color:#fff; font-size:1rem;">${Number.isInteger(v) ? v : v.toFixed(2)} m/s</strong>
+        `;
+        selectionList.appendChild(item);
+      });
+    } else {
+      selectionPanel.classList.add('display-none');
+    }
+
+    valN.textContent = state.n;
+    dispDt.innerHTML = state.n === 1 ? '1 s' : (state.n === 100 ? '1/100 s' : `1/${state.n} s`);
+    dispSpeed.innerHTML = state.speedScaled ? (state.n === 1 ? '1 ×' : `1/${state.n} ×`) : '1 ×';
+
+    if (state.n === 1) {
+      dispArea.innerHTML = '1 m';
+      phaseBox.innerHTML = `Start with unit squares: <strong>1 s</strong> wide and <strong>1 m/s</strong> high.<br><br><span style="color:var(--gold); font-size: 0.85rem;">Click the colored columns to read their specific average speeds.</span>`;
+      mathBox.innerHTML = `<strong>Pattern:</strong> Average-speed columns have heights 1, 3, 5, 7, … m/s.<br><br>
+        Move the slider to divide the time scale by <strong>n</strong>. The fixed <strong>0–4 s</strong> window stays anchored while narrowed bars fill the graph.`;
+      scaleBtn.disabled = true; scaleBtn.classList.remove('active'); scaleBtn.textContent = '▼ Adjust Speeds (1/n)';
+    } else {
+      scaleBtn.disabled = false;
+      if (!state.speedScaled) {
+        dispArea.innerHTML = `1/${state.n} m`;
+        phaseBox.innerHTML = `<strong>Time squeeze only:</strong> Every bar is <strong>1/${state.n} s</strong> wide. The average speeds are unscaled.`;
+        mathBox.innerHTML = `The cells are rectangles (<strong>1/${state.n} s × 1 m/s</strong>), representing <strong>1/${state.n} m</strong> of distance.<br><br>Apply the vertical speed scale.`;
+        scaleBtn.classList.remove('active'); scaleBtn.textContent = `▼ Adjust Speeds (1/${state.n})`;
+      } else {
+        dispArea.innerHTML = `1/${state.n * state.n} m`;
+        phaseBox.innerHTML = `<strong>Matched scaling:</strong> Time and average speed are both scaled by <strong>1/${state.n}</strong>.`;
+        mathBox.innerHTML = `Each recovered square represents <strong>1/${state.n * state.n} m</strong> of distance.<br><br>
+          The kinematic sequence <strong>1, 3, 5, 7, …</strong> structurally survives across all scales.`;
+        scaleBtn.classList.add('active'); scaleBtn.textContent = '▲ Restore Speeds';
+      }
+    }
+  }
+
+  function drawArrowhead(x,y,dir) {
+    if (dir === 'right') E('path',{d:`M ${x} ${y} l -12 -6 l 3 6 l -3 6 z`, fill:'var(--axis)'});
+    else E('path',{d:`M ${x} ${y} l -6 12 l 6 -3 l 6 3 z`, fill:'var(--axis)'});
+  }
+
+  function drawAxes() {
+    const axis = 'var(--axis)';
+    const muted = 'var(--muted)';
+
+    for (let v=1; v<=SPEED_WINDOW; v++) {
+      const y = ORIGIN_Y - v * UNIT;
+      L(ORIGIN_X-6,y,ORIGIN_X,y,{ stroke:'var(--guide)', 'stroke-width':1.5, opacity:0.6 });
+      T(ORIGIN_X-14,y+4,String(v),{ fill:v%2?axis:muted, 'font-size':v%2?13:11, 'font-weight':v%2?700:500, 'text-anchor':'end' });
+    }
+
+    for (let half=1; half<=TIME_WINDOW*2; half++) {
+      const sec = half / 2;
+      const x = ORIGIN_X + sec * UNIT;
+      const major = Number.isInteger(sec);
+      L(x, ORIGIN_Y-(major?5:3), x, ORIGIN_Y+(major?8:4), {
+        stroke:major?'var(--guide)':'#3a4b66', 'stroke-width':major?1.5:1, opacity:major?0.8:0.4
+      });
+      if (major && !state.speculation) {
+        T(x, ORIGIN_Y+26, String(sec), {
+          fill:sec===1?'var(--gold)':muted, 'font-size':sec===1?14:12,
+          'font-weight':sec===1?800:600, 'text-anchor':'middle'
+        });
+      }
+    }
+
+    L(ORIGIN_X, ORIGIN_Y, CHART_RIGHT+20, ORIGIN_Y, {stroke:axis,'stroke-width':2});
+    L(ORIGIN_X, ORIGIN_Y, ORIGIN_X, CHART_TOP-20, {stroke:axis,'stroke-width':2});
+    drawArrowhead(CHART_RIGHT+20, ORIGIN_Y, 'right');
+    drawArrowhead(ORIGIN_X, CHART_TOP-20, 'up');
+
+    E('circle',{cx:ORIGIN_X, cy:ORIGIN_Y, r:4, fill:'#fff'});
+    if (!state.speculation) {
+      T(ORIGIN_X-12, ORIGIN_Y+22, '0 s', {fill:axis,'font-size':12,'font-weight':700,'text-anchor':'end'});
+      T(ORIGIN_X-12, ORIGIN_Y-12, '0 m/s', {fill:axis,'font-size':12,'font-weight':700,'text-anchor':'end'});
+      T(CHART_RIGHT+18, ORIGIN_Y+50, 'Time (s)', {fill:axis,'font-size':14,'font-weight':700,'text-anchor':'end'});
+      T(25,90,'Average Speed (m/s)', {fill:axis,'font-size':14,'font-weight':700,transform:'rotate(-90 25 90)','text-anchor':'end'});
+    } else {
+      T(ORIGIN_X-7, ORIGIN_Y+20, '0', {fill:axis,'font-size':11,'font-weight':700,'text-anchor':'end'});
+      T(ORIGIN_X+UNIT, ORIGIN_Y+20, '1', {fill:'var(--gold)','font-size':11,'font-weight':700,'text-anchor':'middle'});
+      if (state.showBlock2) {
+        T(ORIGIN_X+2*UNIT, ORIGIN_Y+20, '2', {fill:axis,'font-size':11,'font-weight':700,'text-anchor':'middle'});
+      }
+    }
+
+    const oneSecondX = ORIGIN_X + UNIT;
+    L(oneSecondX, ORIGIN_Y-12, oneSecondX, ORIGIN_Y+10, {stroke:'var(--gold)','stroke-width':3,opacity:1});
+  }
+
+  function makePlotClip() {
+    const defs = E('defs');
+    const clip = E('clipPath',{id:'plot-clip'},defs);
+    R(ORIGIN_X, CHART_TOP, CHART_RIGHT-ORIGIN_X, ORIGIN_Y-CHART_TOP, {}, clip);
+  }
+
+  function drawBarGuides() {
+    if (state.mode === 'speculating' || state.n > 10) return; // Hide for massive scale
+    const barW = UNIT * state.xScale;
+    const cellH = UNIT * state.yScale;
+    const g = E('g',{'clip-path':'url(#plot-clip)'});
+
+    for (let k=1; k<=BAR_COUNT; k++) {
+      const odd = 2*k - 1;
+      const x = ORIGIN_X + (k-1)*barW;
+      if (x >= CHART_RIGHT) break;
+      const y = ORIGIN_Y - odd*cellH;
+      if (y < CHART_TOP || y > ORIGIN_Y) continue;
+
+      const visibleRight = Math.min(CHART_RIGHT, x+barW);
+      L(ORIGIN_X, y, visibleRight, y, { stroke:'#5a6c85', 'stroke-width':1, 'stroke-dasharray':'4 4', opacity:0.42 }, g);
+      L(ORIGIN_X-4, y, ORIGIN_X+4, y, { stroke:'#788ba6', 'stroke-width':1.5, opacity:0.8 }, g);
+    }
+  }
+
+  function drawBars() {
+    if (state.mode === 'speculating') return;
+
+    const barW = UNIT * state.xScale;
+    const cellH = UNIT * state.yScale;
+    const g = E('g',{'clip-path':'url(#plot-clip)'});
+
+    for (let k=1; k<=BAR_COUNT; k++) {
+      const odd = 2*k - 1;
+      const x = ORIGIN_X + (k-1)*barW;
+      if (x >= CHART_RIGHT + barW) break;
+
+      const h = odd*cellH;
+      const y = ORIGIN_Y-h;
+      const [fill,stroke] = COLORS[(k-1)%COLORS.length];
+      const fullyInside = y >= CHART_TOP;
+      
+      const isSelected = state.selectedBlocks.has(k);
+      const fillOpacity = isSelected ? 0.75 : (fullyInside ? 0.45 : 0.10);
+      const strokeOpacity = isSelected ? 1 : (fullyInside ? 1 : 0.30);
+      const finalStroke = isSelected ? '#fff' : stroke;
+      const strokeW = isSelected ? Math.max(1.5, Math.min(3.5, barW*0.15)) : Math.max(0.5, Math.min(2.5, barW * 0.1));
+
+      const rect = R(x,y,barW,h,{
+        fill,opacity:fillOpacity,stroke:finalStroke,'stroke-opacity':strokeOpacity,
+        'stroke-width':strokeW,rx:2, cursor:'pointer', 'pointer-events': 'all'
+      },g);
+      
+      rect.addEventListener('click', () => {
+        if (state.selectedBlocks.has(k)) state.selectedBlocks.delete(k);
+        else state.selectedBlocks.add(k);
+        updatePanel();
+        render();
+      });
+
+      if (state.n <= 10) {
+        for (let r=1; r<odd; r++) {
+          const gy = ORIGIN_Y-r*cellH;
+          if (gy < CHART_TOP) continue;
+          L(x,gy,x+barW,gy,{
+            stroke: finalStroke, opacity: isSelected ? 0.8 : (fullyInside?0.6:0.2),
+            'stroke-width': Math.max(0.5,Math.min(1.5,barW*0.08)), 'pointer-events':'none'
+          },g);
+        }
+      }
+    }
+  }
+
+  function drawSpeculationCurve() {
+    if (state.mode !== 'speculating') return;
+
+    const S = state.curveS;
+    const C = state.curveC;
+    const curveAlpha = state.curveAlpha;
+    const blocksCount = state.showBlock2 ? 2 : 1;
+    const g = E('g', {opacity: curveAlpha});
+
+    for (let k=1; k<=blocksCount; k++) {
+      const [fillColor,strokeColor] = COLORS[(k-1)%COLORS.length];
+      const h = (2*k-1)*UNIT;
+      const x0 = ORIGIN_X+(k-1)*UNIT;
+
+      R(x0,ORIGIN_Y-h,UNIT,h,{
+        fill:rgba(fillColor,0.10),stroke:strokeColor,'stroke-width':2.4,
+        'stroke-dasharray':'6 6',opacity:0.95,rx:2
+      },g);
+
+      if (curveAlpha <= 0.001) continue;
+
+      const steps = 100;
+      const pts = [];
+      for (let i=0; i<=steps; i++) {
+        const tAbs = (k-1)+i/steps;
+        const v = getV(k,tAbs,S,C);
+        pts.push([ORIGIN_X+tAbs*UNIT, ORIGIN_Y-v*UNIT]);
+      }
+
+      let areaD = `M ${x0} ${ORIGIN_Y} `;
+      areaD += pts.map(([x,y]) => `L ${x.toFixed(2)} ${y.toFixed(2)}`).join(' ');
+      areaD += ` L ${x0+UNIT} ${ORIGIN_Y} Z`;
+      E('path',{d:areaD,fill:rgba(fillColor,0.58*curveAlpha),stroke:'none'},g);
+
+      const lineD = pts.map(([x,y],i) => `${i===0?'M':'L'} ${x.toFixed(2)} ${y.toFixed(2)}`).join(' ');
+      E('path',{
+        d:lineD,fill:'none',stroke:'var(--gold)','stroke-width':3.5,
+        'stroke-linecap':'round','stroke-linejoin':'round',opacity:curveAlpha
+      },g);
+    }
+
+    if (state.showBlock2 && curveAlpha > 0.001) {
+      const v1End = getV(1,1,S,C);
+      const v2Start = getV(2,1,S,C);
+      const diff = Math.abs(v1End-v2Start);
+
+      E('circle',{cx:ORIGIN_X+UNIT,cy:ORIGIN_Y-v1End*UNIT,r:5.5,fill:COLORS[0][1],opacity:curveAlpha},g);
+      E('circle',{cx:ORIGIN_X+UNIT,cy:ORIGIN_Y-v2Start*UNIT,r:5.5,fill:COLORS[1][1],opacity:curveAlpha},g);
+      if (diff > 0.015) {
+        L(ORIGIN_X+UNIT,ORIGIN_Y-v1End*UNIT,ORIGIN_X+UNIT,ORIGIN_Y-v2Start*UNIT,{
+          stroke:'var(--warn)','stroke-width':4,'stroke-dasharray':'6 5',opacity:curveAlpha
+        },g);
+      }
+    }
+  }
+
+  function render() {
+    svg.innerHTML = '';
+    svg.setAttribute('viewBox',viewBoxString(state.view));
+    makePlotClip();
+    drawAxes();
+    drawBarGuides();
+    drawBars();
+    drawSpeculationCurve();
+  }
+
+  async function animateScalar(getter,setter,target,duration,tokenCheck=null) {
+    const startValue = getter();
+    return new Promise(resolve => {
+      let start = null;
+      function frame(ts) {
+        if (tokenCheck && !tokenCheck()) return resolve(false);
+        if (start === null) start = ts;
+        const raw = clamp((ts-start)/duration,0,1);
+        setter(lerp(startValue,target,smooth(raw)));
+        render();
+        if (raw < 1) requestAnimationFrame(frame); else resolve(true);
+      }
+      requestAnimationFrame(frame);
+    });
+  }
+
+  async function animateXY(targetX,targetY,duration,tokenCheck=null) {
+    const sx = state.xScale, sy = state.yScale;
+    return new Promise(resolve => {
+      let start = null;
+      function frame(ts) {
+        if (tokenCheck && !tokenCheck()) return resolve(false);
+        if (start === null) start = ts;
+        const raw = clamp((ts-start)/duration,0,1);
+        const q = smooth(raw);
+        state.xScale = lerp(sx,targetX,q);
+        state.yScale = lerp(sy,targetY,q);
+        render();
+        if (raw < 1) requestAnimationFrame(frame); else resolve(true);
+      }
+      requestAnimationFrame(frame);
+    });
+  }
+
+  async function animateView(target,duration,token) {
+    const start = {...state.view};
+    return new Promise(resolve => {
+      let t0 = null;
+      function frame(ts) {
+        if (token !== speculationToken) return resolve(false);
+        if (t0 === null) t0 = ts;
+        const raw = clamp((ts-t0)/duration,0,1);
+        const q = smooth(raw);
+        state.view = {
+          x:lerp(start.x,target.x,q), y:lerp(start.y,target.y,q),
+          w:lerp(start.w,target.w,q), h:lerp(start.h,target.h,q)
+        };
+        render();
+        if (raw < 1) requestAnimationFrame(frame); else resolve(true);
+      }
+      requestAnimationFrame(frame);
+    });
+  }
+
+  async function enterSpeculation() {
+    if (state.speculation) return;
+    ++animationToken;
+    const token = ++speculationToken;
+
+    state.selectedBlocks.clear();
+    nSlider.disabled = true;
+    scaleBtn.disabled = true;
+    startSpecBtn.disabled = true;
+
+    await animateXY(1,1,420,() => token===speculationToken);
+    if (token !== speculationToken) return;
+    state.n = 1;
+    state.speedScaled = false;
+    nSlider.value = '1';
+
+    state.mode = 'speculating';
+    state.speculation = true;
+    state.curveS = -0.85;
+    state.curveC = 0;
+    state.curveAlpha = 0;
+    state.showBlock2 = false;
+    curveSlider.value = '-0.85';
+    contSlider.value = '0';
+
+    scalingControls.classList.add('hidden');
+    specControls.classList.remove('hidden');
+    curveSlider.disabled = true;
+    contSlider.disabled = true;
+    toggleBlockBtn.disabled = true;
+    toggleBlockBtn.textContent = 'Show Next Block (3 m/s)';
+    updatePanel();
+    render();
+
+    await animateView(SPEC_VIEW_ONE,650,token);
+    if (token !== speculationToken) return;
+
+    await animateScalar(() => state.curveAlpha,v => state.curveAlpha=v,1,240,() => token===speculationToken && state.speculation);
+    if (token !== speculationToken) return;
+
+    curveSlider.disabled = false;
+    toggleBlockBtn.disabled = false;
+    contSlider.disabled = true;
+    startSpecBtn.disabled = false;
+    updatePanel();
+  }
+
+  async function exitSpeculation() {
+    if (!state.speculation) return;
+    const token = ++speculationToken;
+    ++animationToken;
+
+    curveSlider.disabled = true;
+    contSlider.disabled = true;
+    toggleBlockBtn.disabled = true;
+    endSpecBtn.disabled = true;
+
+    await animateScalar(() => state.curveAlpha,v => state.curveAlpha=v,0,260,() => token===speculationToken);
+    if (token !== speculationToken) return;
+
+    await animateView(DEFAULT_VB,700,token);
+    if (token !== speculationToken) return;
+
+    state.mode = 'scaling';
+    state.speculation = false;
+    state.showBlock2 = false;
+    state.curveC = 0;
+    state.view = {...DEFAULT_VB};
+    specControls.classList.add('hidden');
+    scalingControls.classList.remove('hidden');
+
+    nSlider.disabled = false;
+    startSpecBtn.disabled = false;
+    endSpecBtn.disabled = false;
+    updatePanel();
+    render();
+  }
+
+  async function setN(nextN) {
+    if (state.speculation) return;
+    nextN = clamp(Math.round(nextN), 1, MAX_N);
+    const tokenBefore = ++animationToken;
+    const targetX = 1/nextN;
+    state.n = nextN;
+    state.speedScaled = false;
+    state.selectedBlocks.clear();
+    valN.textContent = state.n === 100 ? '100' : state.n;
+    updatePanel();
+
+    await animateXY(targetX,1,600,() => tokenBefore===animationToken && !state.speculation);
+    if (tokenBefore === animationToken) {
+      state.xScale = targetX;
+      state.yScale = 1;
+      updatePanel();
+      render();
+    }
+  }
+
+  async function toggleSpeedScale() {
+    if (state.speculation || state.n===1) return;
+    const tokenBefore = ++animationToken;
+    const targetScaled = !state.speedScaled;
+    state.speedScaled = targetScaled;
+    const targetY = targetScaled ? 1/state.n : 1;
+    updatePanel();
+    scaleBtn.disabled = true;
+
+    await animateScalar(() => state.yScale,v => state.yScale=v,targetY,700,() => tokenBefore===animationToken && !state.speculation);
+    if (tokenBefore === animationToken) {
+      state.yScale = targetY;
+      scaleBtn.disabled = false;
+      updatePanel();
+      render();
+    }
+  }
+
+  async function toggleSecondBlock() {
+    if (!state.speculation || toggleBlockBtn.disabled) return;
+    state.showBlock2 = !state.showBlock2;
+    state.curveC = 0;
+    contSlider.value = '0';
+    contSlider.disabled = !state.showBlock2;
+    toggleBlockBtn.textContent = state.showBlock2 ? 'Hide Next Block' : 'Show Next Block (3 m/s)';
+    updatePanel();
+    render();
+
+    const token = speculationToken;
+    await animateView(state.showBlock2 ? SPEC_VIEW_TWO : SPEC_VIEW_ONE,650,token);
+    updatePanel();
+  }
+
+  // --- Listeners ---
+  nSlider.addEventListener('input', () => {
+    let raw = parseInt(nSlider.value, 10);
+    setN(raw === 11 ? 100 : raw);
+  });
+  
+  scaleBtn.addEventListener('click', toggleSpeedScale);
+  startSpecBtn.addEventListener('click', enterSpeculation);
+  endSpecBtn.addEventListener('click', exitSpeculation);
+  toggleBlockBtn.addEventListener('click', toggleSecondBlock);
+  
+  clearSelectionBtn.addEventListener('click', () => {
+    state.selectedBlocks.clear();
+    updatePanel();
+    render();
+  });
+
+  curveSlider.addEventListener('input', () => {
+    if (!state.speculation) return;
+    state.curveS = clamp(parseFloat(curveSlider.value),-1,1);
+    updateCurveReadout();
+    render();
+  });
+
+  contSlider.addEventListener('input', () => {
+    if (!state.speculation || !state.showBlock2) return;
+    state.curveC = clamp(parseFloat(contSlider.value),0,1);
+    updateCurveReadout();
+    render();
+  });
+
+  // Force explicit synchronous initialization payload
+  function initApp() {
+    valN.textContent = state.n;
+    updatePanel();
+    render();
+  }
+  
+  initApp();
+
+})();
+</script>
+</body>
+</html>
